@@ -31,3 +31,24 @@ test('casesForShare subtracts stock and never goes negative', () => {
   expect(casesForShare(13, 28, 144, 0)).toBe(3);
   expect(casesForShare(13, 28, 144, 1000)).toBe(0);
 });
+
+test('summary numbers are always finite', () => {
+  const zeroCase = { productId: 'z', caseOz: 0, casePrice: 10, cases: 2 };
+  for (const s of [
+    summarizeOrder([], 32.5),
+    summarizeOrder([{ ...BB, cases: 1 }], 0),
+    summarizeOrder([zeroCase], 32.5),
+  ]) {
+    for (const [k, v] of Object.entries(s)) {
+      if (typeof v === 'number') expect(Number.isFinite(v), k).toBe(true);
+    }
+    for (const v of Object.values(s.costPerOzByProduct)) expect(Number.isFinite(v)).toBe(true);
+  }
+  expect(summarizeOrder([zeroCase], 32.5).costPerOzByProduct.z).toBe(0);
+  expect(casesForShare(13, 28, 0, 0)).toBe(0);
+});
+test('exactly 28.0 days is 4 weeks with no slack', () => {
+  const s = summarizeOrder([{ ...W_CHK, cases: 1 }], 144 / 28);
+  expect(s.intervalWeeks).toBe(4);
+  expect(s.slackDays).toBeCloseTo(0, 6);
+});
