@@ -1,4 +1,4 @@
-import type { Cat, Flavor, HouseholdRule } from '../../src/domain/types.js';
+import type { Cat, Flavor, HouseholdRule, Product } from '../../src/domain/types.js';
 
 function cat(over: Partial<Cat> & Pick<Cat, 'id' | 'name' | 'proteinPrefs'>): Cat {
   return {
@@ -45,7 +45,7 @@ export const pharaoh = cat({
 });
 export const cats: Cat[] = [vanta, sinbad, lordBuggins, pixel, pharaoh];
 
-function flavor(over: Partial<Flavor> & Pick<Flavor, 'id' | 'name' | 'primaryProtein'>): Flavor {
+export function flavor(over: Partial<Flavor> & Pick<Flavor, 'id' | 'name' | 'primaryProtein'>): Flavor {
   return {
     productId: `p-${over.id}`,
     texture: 'pate',
@@ -105,3 +105,25 @@ export const fishTrial: HouseholdRule = {
   endsOn: '2026-12-13',
   outcome: null,
 };
+
+export function product(over: Partial<Product> & Pick<Product, 'id'>): Product {
+  return {
+    brand: 'Brand',
+    line: 'Line',
+    name: over.id,
+    canOz: 3,
+    cansPerCase: 12,
+    isVarietyPack: false,
+    upc: null,
+    store: 'chewy',
+    prices: [{ casePrice: 24, seenOn: '2026-11-01', source: 'chewy' }],
+    status: 'active',
+    ...over,
+  };
+}
+
+/** One single-flavor product per sample flavor, keyed by the flavor's productId. */
+export const products: Product[] = [...flavors.values()].map((f) => product({ id: f.productId }));
+export const flavorsByProduct: Record<string, Flavor[]> = Object.fromEntries(
+  [...flavors.values()].map((f) => [f.productId, [f]]),
+);
