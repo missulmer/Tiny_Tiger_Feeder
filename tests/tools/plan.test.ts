@@ -57,6 +57,22 @@ describe('plan_order', () => {
   });
 });
 
+describe('plan_order rules', () => {
+  it('removes a fish product from the current order under a no-fish rule', async () => {
+    await repo.orders.put({
+      id: 'o1', chewyOrderNo: 'C1', date: '2026-10-10', total: null, intervalWeeks: 4, status: 'confirmed-in-chewy',
+      lines: [
+        { productId: chickenPate.productId, qtyCases: 6, casePrice: 24 },
+        { productId: salmonPate.productId, qtyCases: 4, casePrice: 24 },
+      ],
+    });
+    const sheet = await planOrder(repo, { overrides: { 'salmon-pate': 3 }, overrideSwapLimit: true });
+    const line = sheet.lines.find(l => l.productId === salmonPate.productId)!;
+    expect(line.action).toBe('REMOVE');
+    expect(sheet.lines.filter(l => l.action !== 'REMOVE' && l.productId === salmonPate.productId)).toHaveLength(0);
+  });
+});
+
 describe('explain_line / history / export', () => {
   it('explain_line returns per-cat summaries, state, stock and violations', async () => {
     await repo.meals.put(meal('ms', 'vanta', '2026-10-01', 'salmon-pate'));

@@ -8,7 +8,7 @@
  * Fetched:  2026-11-06
  *
  * Palette, space, radius and type scales below are copied verbatim from the package
- * (a subset: primary, blue, green, yellow, red, support). Wanda stores colors as bare
+ * (a subset: primary, blue, green, yellow, red, support). Font families (system-ui, sans-serif / monospace) were re-verified against the package. Wanda stores colors as bare
  * HSL triplets, so use them as hsl(var(--color-primary-10)).
  * The semantic --wanda-* names at the bottom are OURS: a light/dark mapping onto Wanda's palette.
  */
@@ -89,6 +89,7 @@
   --space-64: 4.000rem;
   --wds-font-family-sans: system-ui, sans-serif;
   --wds-font-family-mono: monospace;
+  --wds-letter-spacing-24: 0.015rem;
   --wds-font-size-12: 0.75rem;
   --wds-font-size-14: 0.875rem;
   --wds-font-size-16: 1rem;

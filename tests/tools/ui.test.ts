@@ -27,6 +27,14 @@ describe('get_ui_kit', () => {
     expect(t).toContain('var(--');
   });
 
+  it('every var(--x) in the template is defined in the token css', async () => {
+    const { css, updateSheetTemplate: t } = await getUiKit();
+    const used = new Set([...t.matchAll(/var\((--[\w-]+)/g)].map(m => m[1]!));
+    const defined = new Set([...css.matchAll(/^\s*(--[\w-]+)\s*:/gm)].map(m => m[1]!));
+    expect(used.size).toBeGreaterThan(0);
+    expect([...used].filter(v => !defined.has(v))).toEqual([]);
+  });
+
   it('registers the tools over MCP', async () => {
     const repo = createMemoryRepo();
     const server = new McpServer({ name: 't', version: '0' });
