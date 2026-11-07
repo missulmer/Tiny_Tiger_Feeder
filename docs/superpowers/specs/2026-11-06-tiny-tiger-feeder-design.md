@@ -57,11 +57,11 @@ The smallest build that delivers the value:
 
 **Accounts (owner):**
 - The owner is on the Claude **Max** plan and signs in to Claude as **laura@ulmerandco.io**.
-- Chewy's emails go to a **different** Google account, **ms.ulmer@gmail.com**.
+- Chewy's emails now go to **laura@ulmerandco.io**. The owner changed the Chewy account email and forwarded the recent autoship emails there on 2026-11-06. Earlier history is in ms.ulmer@gmail.com.
 
 **To verify before building:**
 - That a custom remote connector can be added on Max and used from the Claude phone app. Confirm this with a throwaway "hello" connector as the first build step (Claude's call).
-- Which Google account Claude's Gmail connector is attached to. If it isn't ms.ulmer@gmail.com, the fallback is that the owner sets up forwarding of chewy.com mail into the connected account. That's her action, not the app's.
+- That Claude's Gmail connector is attached to laura@ulmerandco.io, where Chewy mail now arrives.
 - That the server is locked to the owner. It's on the public internet, so it must require auth (OAuth or equivalent, as the custom-connector flow supports), scoped to the single owner identity. An unguessable URL alone is not enough.
 
 **Left to the builder:** server language and framework (TypeScript with the official MCP SDK is the default suggestion), hosting (anything free or near free that serves remote MCP over HTTPS; check whether the host needs a billing account), the database layout within Firestore, and testing approach.
