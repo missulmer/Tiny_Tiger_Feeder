@@ -46,9 +46,11 @@ export function createFirestoreRepo(db: Firestore): Repo {
     pantryEvents: firestoreCollection(db, 'pantryEvents'),
     orders: firestoreCollection(db, 'orders'),
     async mealsFor(q) {
-      // date range + catId pushed to Firestore; flavorId (nested arrays) filtered in memory
+      // Only the date range is pushed down. Combining catId equality with a date
+      // range would require a composite index (catId, date) in production (the
+      // emulator does not enforce indexes). catId and flavorId are filtered
+      // client-side via mealMatches to avoid that index.
       let query: FirebaseFirestore.Query = db.collection('meals');
-      if (q.catId !== undefined) query = query.where('catId', '==', q.catId);
       if (q.from !== undefined) query = query.where('date', '>=', q.from);
       if (q.to !== undefined) query = query.where('date', '<=', q.to);
       const snap = await query.get();

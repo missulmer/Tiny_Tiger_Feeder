@@ -12,6 +12,7 @@
     "test:firestore": "npx firebase-tools emulators:exec --only firestore --project demo-ttf \"npx vitest run tests/store/firestoreRepo.test.ts\""
   },
   "devDependencies": {
+    "@types/node": "^26.6.6",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },
