@@ -25,7 +25,7 @@
 
 ## Review Focus
 
-1. **Food whose `containsFish` is unknown during the fish trial.** It must be treated as not safe: flagged in the rule check and excluded by the advisor, never passed as fish-free. (Test in Task 2.)
+1. **Food whose `contains` is unknown during the fish trial.** It must be treated as not safe: flagged in the rule check and excluded by the advisor, never passed as fish-free. (Test in Task 2.)
 2. **Variety pack arriving in a shipment.** Stock must go up per flavor, by that flavor's cans per case, not as one lump "product" count. (Test in Task 5.)
 3. **Pantry estimate going negative** because meals were logged with no recorded stock. Display it as 0 and put that flavor on the count-check list. Never subtract a negative from the order. (Test in Task 5.)
 4. **A cat or food with no verdicts yet.** Allocation must still produce a mix (falling back to protein preference rank) with no division by zero and no NaN in totals. (Test in Task 6.)
@@ -91,7 +91,7 @@ Proves the architecture before anything else gets built. It needs the owner at h
   - `type FoodState = 'unproven'|'in_rotation'|'slipping'|'resting'|'due_for_retry'|'retired'`
   - Interfaces exactly as spec §10:
     - `Cat`: adds `sideSwingsWet: boolean`, `noMixDryIntoWet: boolean`, `fixedPortionOz: number|null`, `eatsAnythingWeight: number` (default 1), `dailyOz: number` (default 6.5).
-    - `Product`, `Flavor` (with `containsFish: boolean|null`, `kind: FlavorKind`, `unit: 'can'|'tube'|'cup'`, `canOz: number`).
+    - `Product`, `Flavor` (with `contains: string[]|null`, `kind: FlavorKind`, `unit: 'can'|'tube'|'cup'`, `canOz: number`).
     - `Alias`, `Meal` (with `source: 'observed'|'recalled'`), `Plate`, `PlateItem { flavorId; amountOz }`, `HouseholdRule`, `PantryEvent`, `Order`, `OrderLine`.
 - Produces, in `orderMath.ts`:
   - `type MixLine = { productId: string; cases: number; caseOz: number; casePrice: number }`
@@ -149,7 +149,7 @@ test('casesForShare subtracts stock and never goes negative', () => {
 **Interfaces:**
 - Consumes: `Cat`, `Flavor`, `HouseholdRule`, `Plate` from Task 1.
 - Produces:
-  - `type Violation = { rule: 'fish_trial'|'texture'|'dry_mix'; catId?: string; flavorId?: string; message: string; certainty: 'known'|'unknown' }`
+  - `type Violation = { rule: 'excluded_ingredient'|'texture'|'dry_mix'; catId?: string; flavorId?: string; message: string; certainty: 'known'|'unknown' }`
   - `activeRules(rules: HouseholdRule[], onDate: string): HouseholdRule[]`
   - `checkFlavorForCat(f: Flavor, cat: Cat, rules: HouseholdRule[], onDate: string): Violation[]`
   - `checkPlate(plate: Plate, cat: Cat, flavors: Map<string,Flavor>, rules: HouseholdRule[], onDate: string): Violation[]`
@@ -160,12 +160,12 @@ test('casesForShare subtracts stock and never goes negative', () => {
 ```ts
 const trial = { id:'r1', kind:'exclude-ingredient', value:'fish', startsOn:'2026-11-01', endsOn:'2026-12-13', outcome:null };
 test('fish flavor violates active trial for every cat', () =>
-  expect(checkFlavorForCat(salmonPate, vanta, [trial], '2026-11-10')[0]).toMatchObject({rule:'fish_trial',certainty:'known'}));
+  expect(checkFlavorForCat(salmonPate, vanta, [trial], '2026-11-10')[0]).toMatchObject({rule:'excluded_ingredient',certainty:'known'}));
 test('trial not active after endsOn', () =>
   expect(checkFlavorForCat(salmonPate, vanta, [trial], '2026-12-14')).toEqual([]));
-test('unknown containsFish is flagged and not servable during trial', () => {    // Review Focus 1
-  const f = {...chickenPate, containsFish:null};
-  expect(checkFlavorForCat(f, vanta, [trial], '2026-11-10')[0]).toMatchObject({rule:'fish_trial',certainty:'unknown'});
+test('unknown contains is flagged and not servable during trial', () => {    // Review Focus 1
+  const f = {...chickenPate, contains:null};
+  expect(checkFlavorForCat(f, vanta, [trial], '2026-11-10')[0]).toMatchObject({rule:'excluded_ingredient',certainty:'unknown'});
   expect(servableFor(f, vanta, [trial], '2026-11-10')).toBe(false);
 });
 test('chunks blocked for Pixel', () =>
@@ -367,7 +367,7 @@ Also produces:
 - Produces: `withConfirm<T>(confirm: boolean, preview: T, commit: () => Promise<T>): Promise<{ saved: boolean; preview: T }>` in `preview.ts`, used by every write tool.
 - Tools (zod input schemas):
   - `find_food({ query })`: matches against aliases, product names and UPCs. Returns candidates with `{ productId, flavorId, name, score }`.
-  - `add_food({ product, flavors[], confirm })` and `update_food({ id, patch, confirm })`. The preview must state `containsFish` and `texture` for each flavor.
+  - `add_food({ product, flavors[], confirm })` and `update_food({ id, patch, confirm })`. The preview must state `contains` and `texture` for each flavor.
   - `set_alias({ text, targetId, confirm })`.
   - `update_cat({ id, patch, confirm })`.
   - `set_household_rule({ rule, confirm })`.
@@ -403,7 +403,7 @@ Also produces:
   - `log_recalled_verdicts({ catId, verdicts: { flavorId; verdict }[], confirm })`. Writes Meals with `source:'recalled'` and no pantry events.
 
 - [ ] **Step 1: Write the failing tests:**
-  - `log_meal preview lists fish_trial violation for Purrly salmon`
+  - `log_meal preview lists excluded_ingredient violation for Purrly salmon`
   - `log_meal refuses save with violation unless acknowledged`
   - `second non-choice meal for same cat/date/slot reports duplicate and is not saved without confirm` (Review Focus 5)
   - `choice meal with two plates is not a duplicate`
