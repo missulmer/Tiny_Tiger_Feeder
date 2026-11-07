@@ -1,0 +1,172 @@
+/**
+ * Tiny Tiger Feeder UI kit: Wanda design tokens (Wonderflow).
+ *
+ * Source:   @wonderflow/tokens 16.1.0 (npm; platforms/web/tokens.css),
+ *           https://github.com/wonderflow-bv/wanda, docs https://wanda.wonderflow.ai
+ * License:  Apache-2.0 (package.json "license" of @wonderflow/tokens@16.1.0;
+ *           `npm view @wonderflow/tokens license`)
+ * Fetched:  2026-11-06
+ *
+ * Palette, space, radius and type scales below are copied verbatim from the package
+ * (a subset: primary, blue, green, yellow, red, support). Wanda stores colors as bare
+ * HSL triplets, so use them as hsl(var(--color-primary-10)).
+ * The semantic --wanda-* names at the bottom are OURS: a light/dark mapping onto Wanda's palette.
+ */
+
+:root {
+  --color-blue-0: 180 100% 95%;
+  --color-blue-5: 187 100% 89%;
+  --color-blue-10: 200 100% 83%;
+  --color-blue-20: 206 72% 67%;
+  --color-blue-30: 210 60% 54%;
+  --color-blue-40: 214 66% 44%;
+  --color-blue-50: 217 80% 35%;
+  --color-blue-60: 219 93% 27%;
+  --color-blue-70: 221 100% 22%;
+  --color-blue-80: 222 100% 17%;
+  --color-blue-90: 223 100% 12%;
+  --color-blue-100: 223 100% 7%;
+  --color-green-0: 149 100% 91%;
+  --color-green-5: 145 95% 84%;
+  --color-green-10: 145 76% 75%;
+  --color-green-20: 146 62% 59%;
+  --color-green-30: 147 63% 46%;
+  --color-green-40: 149 83% 35%;
+  --color-green-50: 152 100% 28%;
+  --color-green-60: 156 100% 23%;
+  --color-green-70: 160 100% 18%;
+  --color-green-80: 166 100% 13%;
+  --color-green-90: 170 100% 8%;
+  --color-green-100: 177 100% 4%;
+  --color-primary-0: 210 20% 98%;
+  --color-primary-5: 220 19% 91%;
+  --color-primary-10: 220 16% 85%;
+  --color-primary-20: 219 14% 75%;
+  --color-primary-30: 220 12% 66%;
+  --color-primary-40: 221 10% 56%;
+  --color-primary-50: 221 9% 49%;
+  --color-primary-60: 221 10% 39%;
+  --color-primary-70: 221 10% 30%;
+  --color-primary-80: 219 13% 22%;
+  --color-primary-90: 218 11% 14%;
+  --color-primary-100: 225 11% 7%;
+  --color-red-0: 343 100% 96%;
+  --color-red-5: 351 100% 88%;
+  --color-red-10: 351 100% 81%;
+  --color-red-20: 351 77% 64%;
+  --color-red-30: 351 66% 49%;
+  --color-red-40: 351 92% 37%;
+  --color-red-50: 351 100% 31%;
+  --color-red-60: 351 100% 25%;
+  --color-red-70: 351 100% 20%;
+  --color-red-80: 350 100% 15%;
+  --color-red-90: 350 100% 10%;
+  --color-red-100: 351 100% 5%;
+  --color-support-black: 0 0% 0%;
+  --color-support-white: 0 0% 100%;
+  --color-yellow-0: 60 100% 89%;
+  --color-yellow-5: 46 100% 83%;
+  --color-yellow-10: 38 100% 77%;
+  --color-yellow-20: 31 89% 65%;
+  --color-yellow-30: 28 72% 53%;
+  --color-yellow-40: 26 82% 42%;
+  --color-yellow-50: 25 100% 34%;
+  --color-yellow-60: 24 100% 29%;
+  --color-yellow-70: 22 100% 24%;
+  --color-yellow-80: 22 100% 19%;
+  --color-yellow-90: 22 100% 15%;
+  --color-yellow-100: 21 100% 10%;
+  --radius-4: 0.250rem;
+  --radius-8: 0.500rem;
+  --radius-16: 1.000rem;
+  --radius-24: 1.500rem;
+  --space-4: 0.250rem;
+  --space-8: 0.500rem;
+  --space-16: 1.000rem;
+  --space-24: 1.500rem;
+  --space-32: 2.000rem;
+  --space-48: 3.000rem;
+  --space-64: 4.000rem;
+  --wds-font-family-sans: system-ui, sans-serif;
+  --wds-font-family-mono: monospace;
+  --wds-font-size-12: 0.75rem;
+  --wds-font-size-14: 0.875rem;
+  --wds-font-size-16: 1rem;
+  --wds-font-size-20: 1.25rem;
+  --wds-font-size-24: 1.5rem;
+  --wds-font-size-32: 2rem;
+  --wds-font-size-40: 2.5rem;
+  --wds-font-weight-bold: 700;
+  --wds-font-weight-semibold: 600;
+  --wds-font-weight-regular: 400;
+  --wds-line-height-16: 1rem;
+  --wds-line-height-20: 1.25rem;
+  --wds-line-height-24: 1.5rem;
+  --wds-line-height-28: 1.75rem;
+  --wds-line-height-32: 2rem;
+  --wds-line-height-40: 2.5rem;
+
+  /* Semantic mapping (light) */
+  color-scheme: light;
+  --wanda-surface: hsl(var(--color-support-white));
+  --wanda-surface-raised: hsl(var(--color-primary-0));
+  --wanda-text: hsl(var(--color-primary-100));
+  --wanda-text-muted: hsl(var(--color-primary-60));
+  --wanda-border: hsl(var(--color-primary-10));
+  --wanda-accent: hsl(var(--color-blue-50));
+  --wanda-accent-text: hsl(var(--color-support-white));
+  --wanda-keep-bg: hsl(var(--color-primary-5));
+  --wanda-keep-text: hsl(var(--color-primary-70));
+  --wanda-change-bg: hsl(var(--color-blue-0));
+  --wanda-change-text: hsl(var(--color-blue-60));
+  --wanda-add-bg: hsl(var(--color-green-0));
+  --wanda-add-text: hsl(var(--color-green-70));
+  --wanda-remove-bg: hsl(var(--color-red-0));
+  --wanda-remove-text: hsl(var(--color-red-60));
+  --wanda-warn-bg: hsl(var(--color-yellow-0));
+  --wanda-warn-text: hsl(var(--color-yellow-70));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --wanda-surface: hsl(var(--color-primary-100));
+    --wanda-surface-raised: hsl(var(--color-primary-90));
+    --wanda-text: hsl(var(--color-primary-0));
+    --wanda-text-muted: hsl(var(--color-primary-30));
+    --wanda-border: hsl(var(--color-primary-80));
+    --wanda-accent: hsl(var(--color-blue-20));
+    --wanda-accent-text: hsl(var(--color-primary-100));
+    --wanda-keep-bg: hsl(var(--color-primary-80));
+    --wanda-keep-text: hsl(var(--color-primary-10));
+    --wanda-change-bg: hsl(var(--color-blue-90));
+    --wanda-change-text: hsl(var(--color-blue-10));
+    --wanda-add-bg: hsl(var(--color-green-90));
+    --wanda-add-text: hsl(var(--color-green-10));
+    --wanda-remove-bg: hsl(var(--color-red-90));
+    --wanda-remove-text: hsl(var(--color-red-10));
+    --wanda-warn-bg: hsl(var(--color-yellow-90));
+    --wanda-warn-text: hsl(var(--color-yellow-10));
+  }
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --wanda-surface: hsl(var(--color-primary-100));
+  --wanda-surface-raised: hsl(var(--color-primary-90));
+  --wanda-text: hsl(var(--color-primary-0));
+  --wanda-text-muted: hsl(var(--color-primary-30));
+  --wanda-border: hsl(var(--color-primary-80));
+  --wanda-accent: hsl(var(--color-blue-20));
+  --wanda-accent-text: hsl(var(--color-primary-100));
+  --wanda-keep-bg: hsl(var(--color-primary-80));
+  --wanda-keep-text: hsl(var(--color-primary-10));
+  --wanda-change-bg: hsl(var(--color-blue-90));
+  --wanda-change-text: hsl(var(--color-blue-10));
+  --wanda-add-bg: hsl(var(--color-green-90));
+  --wanda-add-text: hsl(var(--color-green-10));
+  --wanda-remove-bg: hsl(var(--color-red-90));
+  --wanda-remove-text: hsl(var(--color-red-10));
+  --wanda-warn-bg: hsl(var(--color-yellow-90));
+  --wanda-warn-text: hsl(var(--color-yellow-10));
+}
