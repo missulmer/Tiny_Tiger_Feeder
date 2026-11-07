@@ -59,7 +59,8 @@ export interface Flavor {
   name: string;
   primaryProtein: string;
   texture: Texture;
-  containsFish: boolean | null;
+  /** Ingredient groups present (lowercase); null = ingredients not yet checked. */
+  contains: string[] | null;
   ingredientsText: string | null;
   cansPerCase: number;
   kind: FlavorKind;

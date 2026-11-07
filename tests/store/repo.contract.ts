@@ -30,7 +30,7 @@ const product: Product = {
 };
 const flavor: Flavor = {
   id: 'f1', productId: 'p1', name: 'Turkey', primaryProtein: 'turkey', texture: 'pate',
-  containsFish: false, ingredientsText: null, cansPerCase: 24, kind: 'wet', unit: 'can', canOz: 3,
+  contains: [], ingredientsText: null, cansPerCase: 24, kind: 'wet', unit: 'can', canOz: 3,
 };
 const alias: Alias & { id: string } = { id: 'a1', text: 'turkey pate', flavorId: 'f1', productId: null };
 const rule: HouseholdRule = {

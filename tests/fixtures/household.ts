@@ -49,7 +49,7 @@ export function flavor(over: Partial<Flavor> & Pick<Flavor, 'id' | 'name' | 'pri
   return {
     productId: `p-${over.id}`,
     texture: 'pate',
-    containsFish: false,
+    contains: [],
     ingredientsText: null,
     cansPerCase: 12,
     kind: 'wet',
@@ -59,7 +59,7 @@ export function flavor(over: Partial<Flavor> & Pick<Flavor, 'id' | 'name' | 'pri
   };
 }
 
-export const salmonPate = flavor({ id: 'salmon-pate', name: 'Salmon Pate', primaryProtein: 'salmon', containsFish: true });
+export const salmonPate = flavor({ id: 'salmon-pate', name: 'Salmon Pate', primaryProtein: 'salmon', contains: ['fish'] });
 export const chickenPate = flavor({ id: 'chicken-pate', name: 'Chicken Pate', primaryProtein: 'chicken' });
 export const chunksInGravy = flavor({
   id: 'chunks-in-gravy',
@@ -81,7 +81,7 @@ export const purrlySalmonChicken = flavor({
   name: 'Purrly salmon & chicken',
   primaryProtein: 'chicken',
   texture: 'other',
-  containsFish: true,
+  contains: ['fish', 'chicken'],
   kind: 'topper',
   unit: 'tube',
   canOz: 0.5,

@@ -21,7 +21,7 @@ export type Summary = {
 export const RECENT_WINDOW_DAYS = 21;
 const SLIP_MIN_RECENT = 4;
 const SLIP_DROP = 0.25;
-const VANTA_FLOOR = 0.75;
+const SIDE_SWING_FLOOR = 0.75;
 const PICKED_WEIGHT = 1.5;
 const UNPICKED_SCORE = 0.25;
 const UNPICKED_WEIGHT = 0.5;
@@ -54,7 +54,7 @@ export function entriesFromMeal(meal: Meal, cat: Cat): ScoreEntry[] {
     }
   } else {
     score = VERDICT_SCORE[meal.verdict as keyof typeof VERDICT_SCORE];
-    if (cat.sideSwingsWet && meal.sideOutcome === 'all') score = Math.max(score, VANTA_FLOOR);
+    if (cat.sideSwingsWet && meal.sideOutcome === 'all') score = Math.max(score, SIDE_SWING_FLOOR);
   }
 
   const factor = (cat.eatsAnythingWeight > 0 ? cat.eatsAnythingWeight : 1) *

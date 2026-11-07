@@ -1,7 +1,8 @@
 import type { Cat, Flavor, HouseholdRule, Plate } from './types.js';
 
 export type Violation = {
-  rule: 'fish_trial' | 'texture' | 'dry_mix';
+  rule: 'excluded_ingredient' | 'texture' | 'dry_mix';
+  ingredient?: string;
   catId?: string;
   flavorId?: string;
   message: string;
@@ -16,15 +17,15 @@ export function activeRules(rules: HouseholdRule[], onDate: string): HouseholdRu
 export function checkFlavorForCat(f: Flavor, cat: Cat, rules: HouseholdRule[], onDate: string): Violation[] {
   const out: Violation[] = [];
   for (const r of activeRules(rules, onDate)) {
-    if (r.kind === 'exclude-ingredient' && r.value === 'fish' && f.containsFish !== false) {
-      const until = r.endsOn ? ` until ${r.endsOn}` : '';
-      out.push(
-        f.containsFish === true
-          ? { rule: 'fish_trial', catId: cat.id, flavorId: f.id, certainty: 'known',
-              message: `Contains fish; the fish trial is active${until}.` }
-          : { rule: 'fish_trial', catId: cat.id, flavorId: f.id, certainty: 'unknown',
-              message: `Fish content unknown; the fish trial is active${until}.` },
-      );
+    if (r.kind !== 'exclude-ingredient') continue;
+    const x = r.value.toLowerCase();
+    const until = r.endsOn ? ` until ${r.endsOn}` : '';
+    if (f.contains === null) {
+      out.push({ rule: 'excluded_ingredient', ingredient: x, catId: cat.id, flavorId: f.id, certainty: 'unknown',
+        message: `Ingredients not checked; the no-${x} rule is active${until}.` });
+    } else if (f.contains.some((c) => c.toLowerCase() === x)) {
+      out.push({ rule: 'excluded_ingredient', ingredient: x, catId: cat.id, flavorId: f.id, certainty: 'known',
+        message: `Contains ${x}; the no-${x} rule is active${until}.` });
     }
   }
   if (f.kind !== 'kibble' && cat.textureRules.blocked.includes(f.texture)) {

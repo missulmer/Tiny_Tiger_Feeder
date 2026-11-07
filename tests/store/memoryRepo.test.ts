@@ -9,7 +9,7 @@ describe('memory repo isolation', () => {
     const repo = createMemoryRepo();
     const flavor = {
       id: 'f1', productId: 'p1', name: 'T', primaryProtein: 'turkey', texture: 'pate' as const,
-      containsFish: false, ingredientsText: null, cansPerCase: 24, kind: 'wet' as const, unit: 'can' as const, canOz: 3,
+      contains: [], ingredientsText: null, cansPerCase: 24, kind: 'wet' as const, unit: 'can' as const, canOz: 3,
     };
     await repo.flavors.put(flavor);
     flavor.name = 'mutated';
