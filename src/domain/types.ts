@@ -66,6 +66,8 @@ export interface Flavor {
   kind: FlavorKind;
   unit: 'can' | 'tube' | 'cup';
   canOz: number;
+  /** Set at onboarding for foods the cats were already known to eat. */
+  provenAtOnboarding?: boolean;
 }
 
 export interface Alias {
