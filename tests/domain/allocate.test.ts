@@ -91,6 +91,29 @@ describe('allocate', () => {
     expect(out.ozPerDayByFlavor['chicken-pate']).toBe(4);
   });
 
+  it('an override on salmon-pate under the fish trial still yields 0 oz and a note', () => {
+    const out = allocate(input({ ownerOverrides: { 'salmon-pate': 5 } }));
+    expect(out.ozPerDayByFlavor['salmon-pate'] ?? 0).toBe(0);
+    expect(out.notes.some((n) => n.includes('Salmon Pate') && n.includes('override'))).toBe(true);
+  });
+
+  it('overrides on retired or non-candidate flavors are ignored with a note', () => {
+    const out = allocate(input({
+      states: { 'chicken-pate': 'retired' },
+      ownerOverrides: { 'chicken-pate': 3, 'purrly-salmon-chicken': 1 },
+    }));
+    expect(out.ozPerDayByFlavor['chicken-pate'] ?? 0).toBe(0);
+    expect(out.ozPerDayByFlavor['purrly-salmon-chicken'] ?? 0).toBe(0);
+    expect(out.notes.filter((n) => n.includes('override') && n.includes('ignored'))).toHaveLength(2);
+  });
+
+  it('a kibble flavor in candidateFlavorIds gets 0 oz and the total still sums to 32.5', () => {
+    const out = allocate(input({ candidateFlavorIds: [...wet.map((f) => f.id), 'kibble', 'purrly-salmon-chicken'] }));
+    expect(out.ozPerDayByFlavor['kibble'] ?? 0).toBe(0);
+    expect(out.ozPerDayByFlavor['purrly-salmon-chicken'] ?? 0).toBe(0);
+    expect(sum(out.ozPerDayByFlavor)).toBeCloseTo(32.5, 9);
+  });
+
   it('Funk in the Trunk stock reduces Sinbad\'s other shares', () => {
     const base = input({
       cats: [vanta, sinbad, lordBuggins],

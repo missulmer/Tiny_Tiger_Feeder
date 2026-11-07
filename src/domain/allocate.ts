@@ -83,7 +83,7 @@ export function allocate(input: AllocateInput): AllocateResult {
   const byId = new Map(input.flavors.map((f) => [f.id, f]));
   const candidates = input.candidateFlavorIds
     .map((id) => byId.get(id))
-    .filter((f): f is Flavor => f !== undefined && states[f.id] !== 'retired');
+    .filter((f): f is Flavor => f !== undefined && f.kind === 'wet' && states[f.id] !== 'retired');
   const servable = (c: Cat) => candidates.filter((f) => servableFor(f, c, rules, asOf));
 
   // Steps 1–2: split each cat's portion by weight.
@@ -133,9 +133,22 @@ export function allocate(input: AllocateInput): AllocateResult {
   for (const shares of Object.values(perCatOz)) {
     for (const [id, oz] of Object.entries(shares)) ozPerDayByFlavor[id] = (ozPerDayByFlavor[id] ?? 0) + fin(oz);
   }
+  // Overrides never get past a hard rule: only servable wet candidates can be overridden.
   for (const [id, oz] of Object.entries(input.ownerOverrides ?? {})) {
+    const f = candidates.find((x) => x.id === id);
+    const name = byId.get(id)?.name ?? id;
+    const why = !byId.has(id) ? 'unknown flavor'
+      : states[id] === 'retired' ? 'it is retired'
+      : !f ? 'it is not a wet candidate this order'
+      : !cats.some((c) => servableFor(f, c, rules, asOf)) ? 'no cat can be served it under the active rules'
+      : null;
+    if (why) {
+      ozPerDayByFlavor[id] = 0;
+      notes.push(`Owner override for ${name} ignored: ${why}.`);
+      continue;
+    }
     ozPerDayByFlavor[id] = Math.max(0, fin(oz));
-    notes.push(`Owner override: ${byId.get(id)?.name ?? id} set to ${fin(oz)} oz/day.`);
+    notes.push(`Owner override: ${name} set to ${fin(oz)} oz/day.`);
   }
   return { ozPerDayByFlavor, perCatOz, notes };
 }
