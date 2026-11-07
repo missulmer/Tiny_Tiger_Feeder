@@ -122,9 +122,9 @@ The owner watches the cats eat (to protect Vanta, and to keep an eye on Sinbad).
 
 **Per product (the thing you buy):** brand, product line, product name, can size (oz), cans per case, case price (with the date the price was seen), where bought, UPC if known, and whether it's a variety pack.
 
-**Per flavor (the thing a cat eats):** flavor name, primary protein, texture (pâté, minced, shredded, chunks in gravy, au jus, …), **contains fish (yes/no), checked against the full ingredient list, not just the primary protein** (because fish oil and fish broth hide in "chicken" foods), and the ingredient text as found. A single-flavor product has one flavor. A variety pack has several, and how many of each are in the case.
+**Per flavor (the thing a cat eats):** flavor name, primary protein, texture (pâté, minced, shredded, chunks in gravy, au jus, …), **contains: the list of ingredient groups the food includes (fish, chicken, beef, …), checked against the full ingredient list, not just the primary protein** (because fish oil and fish broth hide in "chicken" foods), and the ingredient text as found. `contains` is unknown (null) until the ingredients have been checked, and an unknown food is never treated as safe under an active exclusion rule. Household rules can exclude any ingredient group, not only fish (owner, 2026-11-06). A single-flavor product has one flavor. A variety pack has several, and how many of each are in the case.
 
-**Adding a food:** a photo of the can or label (Claude reads the UPC, name and ingredients), a Chewy product screenshot (name, size, price), or a web search by name or UPC. The owner confirms the fields before saving, especially "contains fish" and texture.
+**Adding a food:** a photo of the can or label (Claude reads the UPC, name and ingredients), a Chewy product screenshot (name, size, price), or a web search by name or UPC. The owner confirms the fields before saving, especially the ingredient groups and texture.
 
 **Prices** come from Chewy screenshots, order emails (which carry only an order total; per-item prices can be worked out only for single-item orders), or hand entry. No scraping.
 
@@ -198,7 +198,7 @@ The result is the proposed mix. The owner's adjustments in conversation override
 
 - **Cat:** id, name, age, breed, weight, allergies[{substance, status, until}], textureRules{allowed[], blocked[]}, noMixDryIntoWet, fixedPortionOz, eatsAnythingWeight, proteinPrefs[ranked], usualPlate.
 - **Product:** id, brand, line, name, canOz, cansPerCase, isVarietyPack, upc, store, prices[{casePrice, seenOn, source}], status (active/retired).
-- **Flavor:** id, productId, name, primaryProtein, texture, containsFish, ingredientsText, cansPerCase (within a pack). Also used for toppers and kibble, with a `kind` (wet / topper / kibble) and unit.
+- **Flavor:** id, productId, name, primaryProtein, texture, contains (string[] | null), ingredientsText, cansPerCase (within a pack). Also used for toppers and kibble, with a `kind` (wet / topper / kibble) and unit.
 - **Alias:** text → flavorId or productId (owner shorthand).
 - **Meal:** id, catId, date, slot (AM/PM), plates[{items[{flavorId, amountOz or share}], toppers[], side{flavorId, amount}}], choice{offeredPlateIdx[], pickedIdx}, verdict, vomitCause, sideOutcome, isTaster, source (observed / recalled), note, loggedAt.
 - **HouseholdRule:** id, kind (exclude-ingredient), value (fish), startsOn, endsOn, outcome.
