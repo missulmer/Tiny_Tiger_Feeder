@@ -52,12 +52,12 @@ describe('entriesFromMeal', () => {
 
   it('food vomit flags with score 0', () => {
     const [e] = entriesFromMeal(meal({ verdict: 'ate_then_vomited', vomitCause: 'food' }), lordBuggins);
-    expect(e!).toMatchObject({ score: 0, vomitFlag: true, weight: 1 });
+    expect(e!).toMatchObject({ score: 0, vomitFlag: true, weight: 1, vomitCause: 'food' });
   });
 
   it('unsure vomit scores 0 at weight 0.3', () => {
     const [e] = entriesFromMeal(meal({ verdict: 'ate_then_vomited', vomitCause: 'unsure' }), lordBuggins);
-    expect(e!).toMatchObject({ score: 0, weight: 0.3, vomitFlag: false });
+    expect(e!).toMatchObject({ score: 0, weight: 0.3, vomitFlag: false, vomitCause: 'unsure' });
   });
 
   it('hairball vomit produces no entry', () => {

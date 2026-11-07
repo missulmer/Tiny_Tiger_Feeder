@@ -8,6 +8,7 @@ export type ScoreEntry = {
   weight: number;
   withTopper: boolean;
   vomitFlag: boolean;
+  vomitCause?: 'food' | 'unsure';
 };
 
 export type Summary = {
@@ -38,13 +39,19 @@ export function entriesFromMeal(meal: Meal, cat: Cat): ScoreEntry[] {
   let score: number;
   let weight = 1;
   let vomitFlag = false;
+  let vomitCause: 'food' | 'unsure' | undefined;
   const isVomit = meal.verdict === 'ate_then_vomited';
 
   if (isVomit) {
     if (meal.vomitCause === 'hairball') return [];
     score = 0;
-    if (meal.vomitCause === 'food') vomitFlag = true;
-    else weight = UNSURE_VOMIT_WEIGHT;
+    if (meal.vomitCause === 'food') {
+      vomitFlag = true;
+      vomitCause = 'food';
+    } else {
+      weight = UNSURE_VOMIT_WEIGHT;
+      vomitCause = 'unsure';
+    }
   } else {
     score = VERDICT_SCORE[meal.verdict as keyof typeof VERDICT_SCORE];
     if (cat.sideSwingsWet && meal.sideOutcome === 'all') score = Math.max(score, VANTA_FLOOR);
@@ -68,6 +75,7 @@ export function entriesFromMeal(meal: Meal, cat: Cat): ScoreEntry[] {
         weight: (isPicked ? weight * (hasChoice ? PICKED_WEIGHT : 1) : UNPICKED_WEIGHT) * factor,
         withTopper,
         vomitFlag: isPicked ? vomitFlag : false,
+        ...(isPicked && vomitCause ? { vomitCause } : {}),
       });
     }
   });
