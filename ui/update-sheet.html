@@ -1,0 +1,61 @@
+<!-- Chewy update sheet template. Inline the token CSS from get_ui_kit in <style> first.
+     Repeat the <li class="row"> block once per product. Tag class: keep | change | add | remove. -->
+<style>
+  .sheet { font-family: var(--wds-font-family-sans); color: var(--wanda-text); background: var(--wanda-surface);
+    max-width: 44rem; margin: 0 auto; padding: var(--space-16); }
+  .sheet h1 { font-size: var(--wds-font-size-24); line-height: var(--wds-line-height-32); margin: 0; font-weight: var(--wds-font-weight-bold); }
+  .ship-by { color: var(--wanda-text-muted); font-size: var(--wds-font-size-14); margin: var(--space-4) 0 var(--space-8); }
+  .instruction { font-size: var(--wds-font-size-16); margin: 0 0 var(--space-16); }
+  .rows { list-style: none; margin: 0; padding: 0; border: 1px solid var(--wanda-border); border-radius: var(--radius-8); }
+  .row { display: grid; grid-template-columns: auto auto 1fr auto; gap: var(--space-8) var(--space-16); align-items: start;
+    padding: var(--space-16); border-bottom: 1px solid var(--wanda-border); }
+  .row:last-child { border-bottom: 0; }
+  .row input[type="checkbox"] { width: var(--space-24); height: var(--space-24); accent-color: var(--wanda-accent); }
+  .tag { font-size: var(--wds-font-size-12); font-weight: var(--wds-font-weight-bold); padding: var(--space-4) var(--space-8);
+    border-radius: var(--radius-4); letter-spacing: var(--wds-letter-spacing-24); }
+  .tag.keep { background: var(--wanda-keep-bg); color: var(--wanda-keep-text); }
+  .tag.change { background: var(--wanda-change-bg); color: var(--wanda-change-text); }
+  .tag.add { background: var(--wanda-add-bg); color: var(--wanda-add-text); }
+  .tag.remove { background: var(--wanda-remove-bg); color: var(--wanda-remove-text); }
+  .product { font-weight: var(--wds-font-weight-semibold); }
+  .reason { grid-column: 3; color: var(--wanda-text-muted); font-size: var(--wds-font-size-14); margin: var(--space-4) 0 0; }
+  .qty { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .old { color: var(--wanda-text-muted); }
+  .interval { display: flex; justify-content: space-between; margin: var(--space-16) 0; padding: var(--space-16);
+    background: var(--wanda-surface-raised); border: 1px solid var(--wanda-border); border-radius: var(--radius-8); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: var(--space-16); }
+  .tile { background: var(--wanda-surface-raised); border: 1px solid var(--wanda-border); border-radius: var(--radius-8); padding: var(--space-16); }
+  .tile .label { color: var(--wanda-text-muted); font-size: var(--wds-font-size-12); }
+  .tile .big { font-size: var(--wds-font-size-24); font-weight: var(--wds-font-weight-bold); }
+  .tile .sub { color: var(--wanda-text-muted); font-size: var(--wds-font-size-14); }
+  .warnings { margin: var(--space-16) 0 0; padding: var(--space-8) var(--space-16); list-style: none;
+    background: var(--wanda-warn-bg); color: var(--wanda-warn-text); border-radius: var(--radius-8); font-size: var(--wds-font-size-14); }
+</style>
+<section class="sheet">
+  <h1>{{title}}</h1>
+  <p class="ship-by">Ship by {{shipBy}}</p>
+  <p class="instruction">{{instruction}}</p>
+  <ul class="rows">
+    <li class="row">
+      <input type="checkbox" aria-label="Done: {{product}}">
+      <span class="tag {{tagClass}}">{{action}}</span>
+      <div>
+        <div class="product">{{product}}</div>
+        <p class="reason">{{reason}}</p>
+      </div>
+      <div class="qty"><span class="old">{{fromQty}}</span> &rarr; <strong>{{toQty}}</strong> cases</div>
+    </li>
+  </ul>
+  <div class="interval">
+    <span>Ship every</span>
+    <span class="qty"><span class="old">{{intervalFrom}}</span> &rarr; <strong>{{intervalTo}}</strong> weeks</span>
+  </div>
+  <div class="tiles">
+    <div class="tile"><div class="label">Days of food</div><div class="big">{{daysOfFood}}</div><div class="sub">{{slackDays}} days of slack</div></div>
+    <div class="tile"><div class="label">Per shipment</div><div class="big">{{costPerShipment}}</div></div>
+    <div class="tile"><div class="label">Per day / per month</div><div class="big">{{costPerDay}}</div><div class="sub">{{costPerMonth}} a month</div></div>
+  </div>
+  <ul class="warnings">
+    <li>{{warning}}</li>
+  </ul>
+</section>
