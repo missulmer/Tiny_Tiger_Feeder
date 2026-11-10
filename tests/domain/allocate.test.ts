@@ -215,9 +215,9 @@ describe('buildUpdateSheet', () => {
       ['p-salmon-pate', 'REMOVE', 0],
       ['p-chicken-pate', 'ADD', 5],
     ]);
-    expect(sh.summary).toEqual(
-      summarizeOrder([{ productId: 'p-chicken-pate', cases: 5, caseOz: 36, casePrice: 24 }], 32.5, 12),
-    );
+    // R20: same as summarizeOrder except slack, which the sheet measures against the chosen 28-day interval.
+    const base = summarizeOrder([{ productId: 'p-chicken-pate', cases: 5, caseOz: 36, casePrice: 24 }], 32.5, 12);
+    expect(sh.summary).toEqual({ ...base, slackDays: base.daysOfFood - 28 });
     expect(sh.intervalWeeks).toEqual({ from: null, to: 4 });
   });
 
@@ -240,5 +240,83 @@ describe('buildUpdateSheet', () => {
     expect(sh.summary.costPerShipment).toBe(0);
     expect(sh.warnings.some((w) => w.includes('p-chicken-pate') && w.includes('price'))).toBe(true);
     for (const v of Object.values(sh.summary)) if (typeof v === 'number') expect(Number.isFinite(v)).toBe(true);
+  });
+});
+
+describe('final-review fixes (domain)', () => {
+  it('C1: costPerAcceptedOz is null when the product has no price', () => {
+    const fs = [flavor({ id: 'a', name: 'a', primaryProtein: 'chicken', productId: 'np' })];
+    expect(costPerAcceptedOz(product({ id: 'np', prices: [] }), fs, { vanta: { a: s(0.9) } })).toBeNull();
+  });
+
+  it('I1: slack is measured against the chosen interval (3 weeks, ~31 days of food -> ~10 days)', () => {
+    // 14 oz x 24 = 336 oz per case; 32.5 oz/day x 21 days = 682.5 oz -> 3 cases = 1008 oz = 31.0 days.
+    const big = product({ id: 'p-chicken-pate', canOz: 14, cansPerCase: 24 });
+    const sh = sheet({ products: [big], proposedOzPerDay: { 'chicken-pate': 32.5 }, intervalDays: 21 });
+    expect(sh.lines[0]).toMatchObject({ action: 'ADD', toQty: 3 });
+    expect(sh.summary.daysOfFood).toBeCloseTo(1008 / 32.5, 9);
+    expect(sh.summary.slackDays).toBeCloseTo(1008 / 32.5 - 21, 9);
+    expect(sh.summary.slackDays).toBeGreaterThan(9.9);
+    expect(sh.intervalWeeks.to).toBe(3);
+    expect(sh.warnings.some((w) => w.includes('Food runs out'))).toBe(false);
+  });
+
+  it('I1: a shortfall gives negative slack and a run-out warning with the server-computed days', () => {
+    // Unproven cap: 1 case of 36 oz for 32.5 oz/day = 1.1 days against a 28-day interval.
+    const sh = sheet({ proposedOzPerDay: { 'chicken-pate': 32.5 }, states: { 'chicken-pate': 'unproven' } });
+    expect(sh.summary.slackDays).toBeCloseTo(36 / 32.5 - 28, 9);
+    expect(sh.summary.slackDays).toBeLessThan(0);
+    expect(sh.warnings).toContain('Food runs out about 27 days before the next shipment');
+  });
+
+  it('I2: a current-order line covered by the pantry is KEEP 0 with the stock reason, not REMOVE', () => {
+    const sh = sheet({
+      current: [{ productId: 'p-chicken-pate', qtyCases: 2, casePrice: 24 }],
+      proposedOzPerDay: { 'chicken-pate': 2 },
+      onHandOz: { 'chicken-pate': 100 },
+      states: { 'chicken-pate': 'in_rotation' },
+      reasons: { 'p-chicken-pate': 'In rotation; liked by 5 of 5' },
+    });
+    expect(sh.lines).toEqual([{
+      productId: 'p-chicken-pate', action: 'KEEP', fromQty: 2, toQty: 0,
+      reason: 'Covered by stock on hand this shipment',
+    }]);
+    // Its shelf stock still counts toward days of food.
+    expect(sh.summary.daysOfFood).toBeCloseTo(100 / 2, 9);
+  });
+
+  it('I2: a genuinely unneeded current line is still REMOVE with its own reason', () => {
+    const sh = sheet({
+      current: [{ productId: 'p-salmon-pate', qtyCases: 1, casePrice: 24 }],
+      proposedOzPerDay: {},
+      onHandOz: { 'salmon-pate': 9 },
+      reasons: { 'p-salmon-pate': 'Fish trial is on' },
+    });
+    expect(sh.lines[0]).toMatchObject({ action: 'REMOVE', toQty: 0, reason: 'Fish trial is on' });
+  });
+
+  it('I2: only ADDs whose flavors are all unproven/resting/due_for_retry count against the one-swap rule', () => {
+    const sh = sheet({
+      proposedOzPerDay: { 'chicken-pate': 2, 'funk-in-the-trunk': 3, 'chunks-in-gravy': 1 },
+      states: { 'chicken-pate': 'slipping', 'funk-in-the-trunk': 'resting', 'chunks-in-gravy': 'due_for_retry' },
+    });
+    expect(sh.lines.map((l) => [l.productId, l.action])).toEqual([
+      ['p-funk-in-the-trunk', 'ADD'],
+      ['p-chicken-pate', 'ADD'],
+    ]);
+    expect(sh.warnings).toContain('Also worth adding: p-chunks-in-gravy (held back by the one-swap rule)');
+  });
+
+  it('I2: a product from a recent order is never subject to the one-swap rule', () => {
+    const sh = sheet({
+      proposedOzPerDay: { 'chicken-pate': 2, 'funk-in-the-trunk': 3 },
+      states: { 'chicken-pate': 'resting', 'funk-in-the-trunk': 'unproven' },
+      recentProductIds: ['p-chicken-pate'],
+    });
+    expect(sh.lines.map((l) => [l.productId, l.action])).toEqual([
+      ['p-funk-in-the-trunk', 'ADD'],
+      ['p-chicken-pate', 'ADD'],
+    ]);
+    expect(sh.warnings.some((w) => w.includes('one-swap'))).toBe(false);
   });
 });

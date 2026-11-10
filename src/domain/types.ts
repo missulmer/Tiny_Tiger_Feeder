@@ -1,7 +1,9 @@
-export type Texture =
-  | 'pate' | 'minced' | 'shredded' | 'soft_shreds'
-  | 'chunks_in_gravy' | 'au_jus' | 'structured' | 'other';
-export type FlavorKind = 'wet' | 'topper' | 'kibble';
+export const TEXTURES = [
+  'pate', 'minced', 'shredded', 'soft_shreds', 'chunks_in_gravy', 'au_jus', 'structured', 'other',
+] as const;
+export type Texture = (typeof TEXTURES)[number];
+export const FLAVOR_KINDS = ['wet', 'topper', 'kibble'] as const;
+export type FlavorKind = (typeof FLAVOR_KINDS)[number];
 export type Verdict = 'clean' | 'bites_left' | 'half' | 'rejected' | 'ate_then_vomited';
 export type VomitCause = 'food' | 'hairball' | 'unsure';
 export type FoodState =

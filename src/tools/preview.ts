@@ -1,3 +1,4 @@
+import type { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Collection } from '../store/repo.js';
 
@@ -25,6 +26,24 @@ export async function uniqueId(
   let id = base;
   for (let n = 2; taken.has(id) || (await coll.get(id)) !== null; n++) id = `${base}-${n}`;
   return id;
+}
+
+/**
+ * Validate a shallow patch: unknown keys are rejected with a plain message listing the allowed ones,
+ * then each value is checked by `schema` (a partial object schema). Returns the parsed (normalized) patch.
+ */
+export function parsePatch<T extends Record<string, unknown>>(
+  schema: z.ZodType<T>, allowed: readonly string[], patch: Record<string, unknown>, what: string,
+): T {
+  for (const k of Object.keys(patch)) {
+    if (!allowed.includes(k)) throw new Error(`Unknown or read-only ${what} field "${k}". Allowed: ${allowed.join(', ')}.`);
+  }
+  const r = schema.safeParse(patch);
+  if (!r.success) {
+    const msgs = r.error.issues.map(i => `${i.path.join('.') || what}: ${i.message}`);
+    throw new Error(`Invalid ${what} patch. ${msgs.join('; ')}. Nothing was changed.`);
+  }
+  return r.data;
 }
 
 export const CONFIRM_HINT =

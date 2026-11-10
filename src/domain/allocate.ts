@@ -59,6 +59,8 @@ export type UpdateSheetInput = {
   cats?: Cat[];
   flavors?: Map<string, Flavor>;
   currentIntervalWeeks?: number;
+  /** Products in any order from the last 2 intervals: never subject to the one-swap rule. */
+  recentProductIds?: string[];
 };
 
 const fin = (n: number | undefined): number => (n !== undefined && Number.isFinite(n) ? n : 0);
@@ -153,8 +155,13 @@ export function allocate(input: AllocateInput): AllocateResult {
   return { ozPerDayByFlavor, perCatOz, notes };
 }
 
-/** Case price ÷ (case oz × share of cans whose flavor the household accepts). Infinity when none accepted. */
-export function costPerAcceptedOz(product: Product, flavors: Flavor[], summaries: Summaries): number {
+/**
+ * Case price ÷ (case oz × share of cans whose flavor the household accepts).
+ * null when no case price is on file; Infinity when no flavor is accepted.
+ */
+export function costPerAcceptedOz(product: Product, flavors: Flavor[], summaries: Summaries): number | null {
+  const price = latestPrice(product);
+  if (price === null) return null;
   let allCans = 0;
   let acceptedCans = 0;
   for (const f of flavors) {
@@ -174,8 +181,12 @@ export function costPerAcceptedOz(product: Product, flavors: Flavor[], summaries
   }
   const caseOz = product.canOz * product.cansPerCase;
   if (allCans <= 0 || acceptedCans <= 0 || caseOz <= 0) return Infinity;
-  return (latestPrice(product) ?? 0) / (caseOz * (acceptedCans / allCans));
+  return price / (caseOz * (acceptedCans / allCans));
 }
+
+export const COVERED_REASON = 'Covered by stock on hand this shipment';
+// Only adding one of these counts as the shipment's swap (spec section 7: "adding a new or rested food").
+const SWAP_STATES: ReadonlySet<FoodState> = new Set<FoodState>(['unproven', 'resting', 'due_for_retry']);
 
 const DEFAULT_REASON: Record<SheetLine['action'], string> = {
   KEEP: 'Same as the current order.',
@@ -205,27 +216,43 @@ export function buildUpdateSheet(input: UpdateSheetInput): UpdateSheet {
     const unproven = states[pid] === 'unproven' || flavorsOf(pid).some((f) => states[f.id] === 'unproven');
     return unproven ? Math.min(qty, 1) : qty;
   };
+  // Zero only because the pantry covers it: it would need cases with an empty shelf.
+  const coveredByStock = (pid: string): boolean => {
+    const p = productById.get(pid);
+    return !!p && stockOz(pid) > 0 && casesForShare(ozPerDay(pid), intervalDays, caseOzOf(p), 0) > 0;
+  };
   const line = (productId: string, action: SheetLine['action'], fromQty: number, toQty: number): SheetLine =>
     ({ productId, action, fromQty, toQty, reason: reasons[productId] ?? DEFAULT_REASON[action] });
 
   const lines: SheetLine[] = [];
   for (const cur of current) {
     const toQty = toQtyFor(cur.productId);
+    if (toQty === 0 && coveredByStock(cur.productId)) {
+      lines.push({ productId: cur.productId, action: 'KEEP', fromQty: cur.qtyCases, toQty: 0, reason: COVERED_REASON });
+      continue;
+    }
     const action = toQty === 0 ? 'REMOVE' : toQty === cur.qtyCases ? 'KEEP' : 'CHANGE';
     lines.push(line(cur.productId, action, cur.qtyCases, toQty));
   }
 
-  // ADDs, largest oz/day first; only the first passes the one-swap rule unless overridden.
+  // ADDs, largest oz/day first. Only adding a new or rested food counts as the one swap: a product whose
+  // flavors are all unproven / resting / due_for_retry (or have no known state) and that was in no order
+  // from the last 2 intervals. The first such ADD passes; the rest are held back unless overridden.
+  const recent = new Set(input.recentProductIds ?? []);
+  const isSwap = (pid: string): boolean => !recent.has(pid) &&
+    flavorsOf(pid).every((f) => { const st = states[f.id]; return st === undefined || SWAP_STATES.has(st); });
   const pids = new Set(Object.keys(flavorsByProduct));
   const adds = [...pids]
     .filter((pid) => !currentQty.has(pid))
     .map((pid) => ({ pid, oz: ozPerDay(pid), qty: toQtyFor(pid) }))
     .filter((a) => a.qty > 0)
     .sort((a, b) => b.oz - a.oz);
-  adds.forEach((a, i) => {
-    if (i === 0 || input.overrideSwapLimit) lines.push(line(a.pid, 'ADD', 0, a.qty));
-    else warnings.push(`Also worth adding: ${a.pid} (held back by the one-swap rule)`);
-  });
+  let swapUsed = false;
+  for (const a of adds) {
+    if (!isSwap(a.pid) || input.overrideSwapLimit) { lines.push(line(a.pid, 'ADD', 0, a.qty)); continue; }
+    if (!swapUsed) { swapUsed = true; lines.push(line(a.pid, 'ADD', 0, a.qty)); continue; }
+    warnings.push(`Also worth adding: ${a.pid} (held back by the one-swap rule)`);
+  }
 
   // Protein fatigue, from the proposed per-cat oz.
   if (input.perCatOz && input.cats && input.flavors) {
@@ -251,16 +278,25 @@ export function buildUpdateSheet(input: UpdateSheetInput): UpdateSheet {
   const mix: MixLine[] = kept.map((l) => {
     const p = productById.get(l.productId);
     const price = p ? latestPrice(p) : null;
-    if (price === null) warnings.push(`No case price on file for ${l.productId}; counted as $0.`);
+    if (price === null && l.toQty > 0) warnings.push(`No case price on file for ${l.productId}; counted as $0.`);
     return { productId: l.productId, cases: l.toQty, caseOz: caseOzOf(p), casePrice: price ?? 0 };
   });
   const dailyOz = input.cats ? input.cats.reduce((n, c) => n + portion(c), 0) : total(proposedOzPerDay);
   const pantryOz = kept.reduce((n, l) => n + stockOz(l.productId), 0);
 
+  // R20: summarizeOrder keeps its fitted-interval slack; the sheet measures slack against the chosen
+  // interval, so it is negative when the food runs out before the next shipment.
+  const summary = summarizeOrder(mix, dailyOz, pantryOz);
+  summary.slackDays = summary.daysOfFood - intervalDays;
+  if (summary.daysOfFood < intervalDays) {
+    const n = Math.ceil(intervalDays - summary.daysOfFood);
+    warnings.push(`Food runs out about ${n} day${n === 1 ? '' : 's'} before the next shipment`);
+  }
+
   return {
     lines,
     intervalWeeks: { from: input.currentIntervalWeeks ?? null, to: intervalDays / 7 },
-    summary: summarizeOrder(mix, dailyOz, pantryOz),
+    summary,
     warnings,
   };
 }

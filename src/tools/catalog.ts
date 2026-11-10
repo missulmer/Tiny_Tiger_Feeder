@@ -1,15 +1,39 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Repo, StoredAlias } from '../store/repo.js';
+import { FLAVOR_KINDS, TEXTURES } from '../domain/types.js';
 import type { Flavor, FlavorKind, Product, Texture } from '../domain/types.js';
-import { CONFIRM_HINT, jsonTool, slugify, uniqueId, withConfirm } from './preview.js';
+import { CONFIRM_HINT, jsonTool, parsePatch, slugify, uniqueId, withConfirm } from './preview.js';
+import { DATE_RE, localToday } from './time.js';
 
-const KINDS: FlavorKind[] = ['wet', 'topper', 'kibble'];
-const TEXTURES = ['pate', 'minced', 'shredded', 'soft_shreds', 'chunks_in_gravy', 'au_jus', 'structured', 'other'] as const;
+const KINDS: readonly FlavorKind[] = FLAVOR_KINDS;
+
+const positiveNum = z.number().positive();
+const priceEntry = z.object({
+  casePrice: positiveNum, seenOn: z.string().regex(DATE_RE, 'must be YYYY-MM-DD'), source: z.string().min(1),
+}).strict();
+const FLAVOR_FIELDS = [
+  'id', 'productId', 'name', 'primaryProtein', 'texture', 'contains', 'ingredientsText', 'cansPerCase', 'canOz',
+  'kind', 'unit', 'provenAtOnboarding',
+] as const;
+const flavorPatch = z.object({
+  id: z.string(), productId: z.string().min(1), name: z.string().min(1), primaryProtein: z.string().min(1),
+  texture: z.enum(TEXTURES), contains: z.array(z.string()).nullable().transform(normalizeContains),
+  ingredientsText: z.string().nullable(), cansPerCase: positiveNum, canOz: positiveNum,
+  kind: z.enum(FLAVOR_KINDS), unit: z.enum(['can', 'tube', 'cup']), provenAtOnboarding: z.boolean(),
+}).partial();
+const PRODUCT_FIELDS = [
+  'id', 'brand', 'line', 'name', 'canOz', 'cansPerCase', 'isVarietyPack', 'upc', 'store', 'prices', 'status',
+] as const;
+const productPatch = z.object({
+  id: z.string(), brand: z.string(), line: z.string(), name: z.string().min(1), canOz: positiveNum,
+  cansPerCase: positiveNum, isVarietyPack: z.boolean(), upc: z.string().nullable(), store: z.string().nullable(),
+  prices: z.array(priceEntry), status: z.enum(['active', 'retired']),
+}).partial();
 
 export type ProductInput = {
   id?: string; brand: string; line: string; name: string; canOz: number; cansPerCase: number;
-  isVarietyPack?: boolean; upc?: string | null; store?: string | null;
+  isVarietyPack?: boolean; upc?: string | null; store?: string | null; casePrice?: number;
 };
 export type FlavorInput = {
   id?: string; productId?: string; name: string; primaryProtein: string; texture: Texture;
@@ -46,13 +70,20 @@ function flavorLine(f: Flavor) {
   };
 }
 
-export async function addFood(repo: Repo, input: { product: ProductInput; flavors: FlavorInput[]; confirm: boolean }) {
+export async function addFood(
+  repo: Repo, input: { product: ProductInput; flavors: FlavorInput[]; confirm: boolean }, now: Date = new Date(),
+) {
   const { product: pi, flavors: fis, confirm } = input;
+  if (pi.casePrice !== undefined && !(typeof pi.casePrice === 'number' && Number.isFinite(pi.casePrice) && pi.casePrice > 0)) {
+    throw new Error(`casePrice must be greater than 0 (got ${String(pi.casePrice)}).`);
+  }
   const productId = pi.id ?? await uniqueId(repo.products, pi.name);
   if (pi.id && await repo.products.get(pi.id)) throw new Error(`Product id "${pi.id}" already exists; use update_food.`);
   const product: Product = {
     id: productId, brand: pi.brand, line: pi.line, name: pi.name, canOz: pi.canOz, cansPerCase: pi.cansPerCase,
-    isVarietyPack: pi.isVarietyPack ?? false, upc: pi.upc ?? null, store: pi.store ?? null, prices: [], status: 'active',
+    isVarietyPack: pi.isVarietyPack ?? false, upc: pi.upc ?? null, store: pi.store ?? null,
+    prices: pi.casePrice !== undefined ? [{ casePrice: pi.casePrice, seenOn: localToday(now), source: 'add_food' }] : [],
+    status: 'active',
   };
   validateProduct(product);
   const taken = new Set<string>();
@@ -71,7 +102,10 @@ export async function addFood(repo: Repo, input: { product: ProductInput; flavor
     flavors.push(f);
   }
   const preview = {
-    product: { id: product.id, name: product.name, canOz: product.canOz, cansPerCase: product.cansPerCase, upc: product.upc },
+    product: {
+      id: product.id, name: product.name, canOz: product.canOz, cansPerCase: product.cansPerCase, upc: product.upc,
+      casePrice: pi.casePrice ?? null,
+    },
     flavors: flavors.map(flavorLine),
   };
   return withConfirm(confirm, preview, async () => {
@@ -82,18 +116,22 @@ export async function addFood(repo: Repo, input: { product: ProductInput; flavor
 }
 
 export async function updateFood(repo: Repo, input: { id: string; patch: Record<string, unknown>; confirm: boolean }) {
-  const { id, patch, confirm } = input;
-  if ('id' in patch && patch.id !== id) throw new Error('Cannot change id.');
+  const { id, confirm } = input;
+  if ('id' in input.patch && input.patch.id !== id) throw new Error('Cannot change id.');
   const flavor = await repo.flavors.get(id);
   const product = flavor ? null : await repo.products.get(id);
   if (!flavor && !product) throw new Error(`Food "${id}" not found (neither product nor flavor).`);
   if (flavor) {
+    const patch = parsePatch(flavorPatch, FLAVOR_FIELDS, input.patch, 'flavor');
+    if (patch.productId !== undefined && !(await repo.products.get(patch.productId))) {
+      throw new Error(`Product "${patch.productId}" not found; a flavor can only move to an existing product.`);
+    }
     const next = { ...flavor, ...patch } as Flavor;
-    if ('contains' in patch) next.contains = normalizeContains(patch.contains as string[] | null);
     validateFlavor(next);
     const preview = { kind: 'flavor' as const, before: flavorLine(flavor), after: flavorLine(next) };
     return withConfirm(confirm, preview, async () => { await repo.flavors.put(next); return preview; });
   }
+  const patch = parsePatch(productPatch, PRODUCT_FIELDS, input.patch, 'product');
   const next = { ...product!, ...patch } as Product;
   validateProduct(next);
   const preview = { kind: 'product' as const, before: summarizeProduct(product!), after: summarizeProduct(next) };
@@ -182,13 +220,14 @@ export function register(server: McpServer, repo: Repo): void {
         id: z.string().optional(), brand: z.string(), line: z.string(), name: z.string(),
         canOz: z.number(), cansPerCase: z.number(), isVarietyPack: z.boolean().optional(),
         upc: z.string().nullable().optional(), store: z.string().nullable().optional(),
+        casePrice: z.number().positive().optional(),
       }),
       flavors: z.array(z.object(flavorShape)),
       confirm: z.boolean(),
     },
   }, jsonTool((i: { product: ProductInput; flavors: FlavorInput[]; confirm: boolean }) => addFood(repo, i)));
   server.registerTool('update_food', {
-    description: `Change fields on an existing product or flavor by id (patch is shallow-merged). ${CONFIRM_HINT}`,
+    description: `Change fields on an existing product or flavor by id (patch is shallow-merged; unknown fields are rejected). ${CONFIRM_HINT}`,
     inputSchema: { id: z.string(), patch: z.record(z.string(), z.unknown()), confirm: z.boolean() },
   }, jsonTool((i: { id: string; patch: Record<string, unknown>; confirm: boolean }) => updateFood(repo, i)));
   server.registerTool('set_alias', {

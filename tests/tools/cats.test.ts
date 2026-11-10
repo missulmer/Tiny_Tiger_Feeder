@@ -34,3 +34,25 @@ describe('update_cat', () => {
     expect(await repo.cats.list()).toHaveLength(0);
   });
 });
+
+describe('update_cat validation (I4)', () => {
+  it('rejects a string dailyOz, a non-Texture, and out-of-range numbers, writing nothing', async () => {
+    const repo = createMemoryRepo();
+    await expect(updateCat(repo, { id: 't', patch: { dailyOz: '6.5' }, confirm: true })).rejects.toThrow(/dailyOz/);
+    await expect(updateCat(repo, { id: 't', patch: { textureRules: { allowed: [], blocked: ['chunks'] } }, confirm: true }))
+      .rejects.toThrow(/textureRules/);
+    await expect(updateCat(repo, { id: 't', patch: { dailyOz: 0 }, confirm: true })).rejects.toThrow(/dailyOz/);
+    await expect(updateCat(repo, { id: 't', patch: { weight: -1 }, confirm: true })).rejects.toThrow(/weight/);
+    await expect(updateCat(repo, { id: 't', patch: { fixedPortionOz: Number.NaN }, confirm: true })).rejects.toThrow(/fixedPortionOz/);
+    await expect(updateCat(repo, { id: 't', patch: { eatsAnythingWeight: 1.5 }, confirm: true })).rejects.toThrow(/eatsAnythingWeight/);
+    expect(await repo.cats.list()).toHaveLength(0);
+  });
+
+  it('lowercases proteinPrefs and accepts valid values', async () => {
+    const repo = createMemoryRepo();
+    await updateCat(repo, { id: 't', patch: { proteinPrefs: [' Chicken', 'DUCK'], eatsAnythingWeight: 0.5, fixedPortionOz: null }, confirm: true });
+    const c = (await repo.cats.get('t'))!;
+    expect(c.proteinPrefs).toEqual(['chicken', 'duck']);
+    expect(c.eatsAnythingWeight).toBe(0.5);
+  });
+});

@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Repo } from '../store/repo.js';
 import type { Flavor, PantryEvent } from '../domain/types.js';
 import { countCheckList, stock } from '../domain/pantry.js';
+import { currentOrderOf } from '../domain/orderMath.js';
 import { CONFIRM_HINT, jsonTool, withConfirm } from './preview.js';
 
 export async function pantryCount(
@@ -12,10 +13,12 @@ export async function pantryCount(
   const stockMap = stock(await repo.pantryEvents.list());
   const { counts } = input;
   if (!counts) {
-    const nextOrder = (await repo.ordersByStatus('planned')).concat(await repo.ordersByStatus('confirmed-in-chewy'));
-    const products = new Set(nextOrder.flatMap(o => o.lines.map(l => l.productId)));
-    const inNext = [...flavors.values()].filter(f => products.has(f.productId)).map(f => f.id);
-    const ids = countCheckList(stockMap, flavors, inNext);
+    // The current order (R19) plus anything with stock on the shelf; not every old order.
+    const current = currentOrderOf(await repo.orders.list());
+    const products = new Set(current?.lines.map(l => l.productId) ?? []);
+    const inCurrent = [...flavors.values()].filter(f => products.has(f.productId)).map(f => f.id);
+    const withStock = Object.keys(stockMap).filter(id => (stockMap[id]?.cans ?? 0) !== 0).sort();
+    const ids = countCheckList(stockMap, flavors, [...inCurrent, ...withStock]);
     return { saved: false, preview: { checkList: ids.map(id => ({ flavorId: id, name: flavors.get(id)!.name, currentCans: stockMap[id]?.cans ?? 0 })) } };
   }
   const bad = Object.entries(counts).filter(([id, n]) => !flavors.has(id) || !Number.isFinite(n) || n < 0);

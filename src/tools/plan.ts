@@ -8,6 +8,7 @@ import { entriesFromMeal, isSlipping, summarize } from '../domain/scoring.js';
 import type { Summary } from '../domain/scoring.js';
 import { foodState } from '../domain/states.js';
 import { onHandOz, stock } from '../domain/pantry.js';
+import { baselineOrders } from '../domain/orderMath.js';
 import type { StockMap } from '../domain/pantry.js';
 import { checkFlavorForCat } from '../domain/rules.js';
 import type { Violation } from '../domain/rules.js';
@@ -28,6 +29,8 @@ export type Context = {
   states: Record<string, FoodState>;
   lastServed: Record<string, string>;
   currentOrder: Order | null;
+  /** Products in the last 2 baseline orders (current and previous, R19 ranking). */
+  recentProductIds: string[];
 };
 
 const latestPrice = (p: Product): number | null =>
@@ -42,9 +45,9 @@ export async function loadContext(repo: Repo, asOf: string): Promise<Context> {
     repo.meals.list(), repo.orders.list(), repo.pantryEvents.list(),
   ]);
   const productById = new Map(products.map(p => [p.id, p]));
-  const confirmed = orders.filter(o => o.status === 'confirmed-in-chewy')
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  const currentOrder = confirmed[0] ?? null;
+  const baseline = baselineOrders(orders);
+  const currentOrder = baseline[0] ?? null;
+  const recentProductIds = [...new Set(baseline.slice(0, 2).flatMap(o => o.lines.map(l => l.productId)))];
   const arrived = orders.filter(o => o.status === 'arrived');
 
   const summaries: Summaries = {};
@@ -77,7 +80,7 @@ export async function loadContext(repo: Repo, asOf: string): Promise<Context> {
       perCat,
     }, asOf);
   }
-  return { asOf, cats, products, flavors, rules, meals, stockMap: stock(events), summaries, states, lastServed, currentOrder };
+  return { asOf, cats, products, flavors, rules, meals, stockMap: stock(events), summaries, states, lastServed, currentOrder, recentProductIds };
 }
 
 const PRIORITY: FoodState[] = ['retired', 'slipping', 'unproven', 'due_for_retry', 'resting', 'in_rotation'];
@@ -109,7 +112,8 @@ function reasonFor(ctx: Context, product: Product, flavors: Flavor[]): string {
 
   if (product.isVarietyPack) {
     const cost = costPerAcceptedOz(product, flavors, ctx.summaries);
-    text += Number.isFinite(cost) ? `; $${cost.toFixed(2)} per accepted oz` : '; no accepted flavors yet';
+    text += cost === null ? '; no price'
+      : Number.isFinite(cost) ? `; $${cost.toFixed(2)} per accepted oz` : '; no accepted flavors yet';
   }
   return text;
 }
@@ -119,13 +123,16 @@ export type PlanInput = {
   targetCostPerMonth?: number;
   overrides?: Record<string, number>;
   overrideSwapLimit?: boolean;
-  save?: boolean;
+  confirm: boolean;
 };
 
 export async function planOrder(repo: Repo, input: PlanInput, now: Date = new Date()) {
   const asOf = localToday(now);
   const ctx = await loadContext(repo, asOf);
   const intervalWeeks = input.intervalWeeks ?? 4;
+  if (!Number.isInteger(intervalWeeks) || intervalWeeks < 1) {
+    throw new Error(`intervalWeeks must be a whole number of weeks, 1 or more (got ${String(intervalWeeks)}).`);
+  }
   const intervalDays = intervalWeeks * 7;
   const productById = new Map(ctx.products.map(p => [p.id, p]));
   const wet = ctx.flavors.filter(f => f.kind === 'wet');
@@ -154,6 +161,7 @@ export async function planOrder(repo: Repo, input: PlanInput, now: Date = new Da
     ...(input.overrideSwapLimit !== undefined ? { overrideSwapLimit: input.overrideSwapLimit } : {}),
     perCatOz: result.perCatOz, cats: ctx.cats, flavors: flavorMap,
     ...(ctx.currentOrder?.intervalWeeks != null ? { currentIntervalWeeks: ctx.currentOrder.intervalWeeks } : {}),
+    recentProductIds: ctx.recentProductIds,
   });
   sheet.warnings.push(...result.notes);
   if (input.targetCostPerMonth !== undefined) {
@@ -164,7 +172,8 @@ export async function planOrder(repo: Repo, input: PlanInput, now: Date = new Da
       ' (the target does not change the mix in v1).');
   }
 
-  const kept = sheet.lines.filter(l => l.action !== 'REMOVE');
+  // Lines that ship: a KEEP at 0 (covered by stock) is not part of the stored order.
+  const kept = sheet.lines.filter(l => l.action !== 'REMOVE' && l.toQty > 0);
   let orderId: string | null = null;
   const commit = async () => {
     const existing = new Set((await repo.orders.list()).map(o => o.id));
@@ -178,7 +187,7 @@ export async function planOrder(repo: Repo, input: PlanInput, now: Date = new Da
     orderId = id;
     return sheet;
   };
-  const r = await withConfirm(input.save === true, sheet, commit);
+  const r = await withConfirm(input.confirm, sheet, commit);
   return { ...r.preview, saved: r.saved, orderId };
 }
 
@@ -208,13 +217,13 @@ export async function explainLine(repo: Repo, input: { productId: string }, now:
 
 export function register(server: McpServer, repo: Repo): void {
   server.registerTool('plan_order', {
-    description: `Plan the next Chewy order; returns the update sheet data. Writes nothing unless save:true. ${CONFIRM_HINT.split('.')[0]}.`,
+    description: `Plan the next Chewy order; returns the update sheet data. confirm:true stores it as the planned order. ${CONFIRM_HINT}`,
     inputSchema: {
-      intervalWeeks: z.number().positive().optional(),
+      intervalWeeks: z.number().int().min(1).optional(),
       targetCostPerMonth: z.number().positive().optional(),
       overrides: z.record(z.string(), z.number()).optional(),
       overrideSwapLimit: z.boolean().optional(),
-      save: z.boolean().optional(),
+      confirm: z.boolean(),
     },
   }, jsonTool((i: PlanInput) => planOrder(repo, i)));
   server.registerTool('explain_line', {

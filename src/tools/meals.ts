@@ -12,6 +12,8 @@ export type MealInput = Omit<Meal, 'id' | 'loggedAt' | 'choice' | 'vomitCause' |
 
 const VERDICTS: Verdict[] = ['clean', 'bites_left', 'half', 'rejected', 'ate_then_vomited'];
 
+const isAmount = (n: unknown): boolean => typeof n === 'number' && Number.isFinite(n) && n >= 0;
+
 function plateFlavorIds(p: Plate): string[] {
   const ids = [...p.items, ...p.toppers].map(i => i.flavorId);
   if (p.side) ids.push(p.side.flavorId);
@@ -34,10 +36,18 @@ export async function logMeal(
     if (m.slot !== 'AM' && m.slot !== 'PM') throw new Error(`Slot must be AM or PM (got ${String(m.slot)}).`);
     if (!VERDICTS.includes(m.verdict)) throw new Error(`Unknown verdict "${String(m.verdict)}".`);
     if (!m.plates.length) throw new Error(`Meal for ${m.catId} has no plates.`);
-    if (m.choice && !(m.choice.pickedIdx >= 0 && m.choice.pickedIdx < m.plates.length)) {
-      throw new Error(`choice.pickedIdx ${m.choice.pickedIdx} is outside the plates for ${m.catId}.`);
+    if (m.choice && !(Number.isInteger(m.choice.pickedIdx) && m.choice.pickedIdx >= 0 && m.choice.pickedIdx < m.plates.length)) {
+      throw new Error(`choice.pickedIdx ${m.choice.pickedIdx} must be a whole-number index of one of the plates for ${m.catId}.`);
     }
-    for (const p of m.plates) for (const id of plateFlavorIds(p)) if (!flavors.has(id)) unknown.add(id);
+    for (const p of m.plates) {
+      for (const i of [...p.items, ...p.toppers]) {
+        if (!isAmount(i.amountOz)) throw new Error(`amountOz for ${i.flavorId} must be 0 or more (got ${String(i.amountOz)}). Nothing was logged.`);
+      }
+      if (p.side && !isAmount(p.side.amount)) {
+        throw new Error(`side amount for ${p.side.flavorId} must be 0 or more (got ${String(p.side.amount)}). Nothing was logged.`);
+      }
+      for (const id of plateFlavorIds(p)) if (!flavors.has(id)) unknown.add(id);
+    }
   }
   if (unknown.size) {
     throw new Error(`Unknown flavor id(s): ${[...unknown].join(', ')}. Use find_food to resolve them. Nothing was logged.`);
@@ -60,9 +70,10 @@ export async function logMeal(
       verdict: m.verdict, vomitCause: (m.vomitCause ?? null) as VomitCause | null, sideOutcome: m.sideOutcome ?? null,
       isTaster: m.isTaster ?? false, source: m.source ?? 'observed', note: m.note ?? null, loggedAt,
     };
-    if (!meal.choice) {
+    // Recalled verdicts (onboarding) are not real meals: they never make or count as duplicates.
+    if (!meal.choice && meal.source !== 'recalled') {
       for (const other of [...existing, ...meals]) {
-        if (other.catId === meal.catId && other.date === meal.date && other.slot === meal.slot && !other.choice) {
+        if (other.source !== 'recalled' && other.catId === meal.catId && other.date === meal.date && other.slot === meal.slot && !other.choice) {
           duplicates.push({ catId: meal.catId, date: meal.date, slot: meal.slot, existingMealId: other.id });
         }
       }
@@ -95,17 +106,17 @@ export async function logMeal(
 }
 
 export function register(server: McpServer, repo: Repo): void {
-  const item = z.object({ flavorId: z.string(), amountOz: z.number() });
+  const item = z.object({ flavorId: z.string(), amountOz: z.number().nonnegative() });
   const plate = z.object({
     items: z.array(item), toppers: z.array(item),
-    side: z.object({ flavorId: z.string(), amount: z.number() }).nullable(),
+    side: z.object({ flavorId: z.string(), amount: z.number().nonnegative() }).nullable(),
   });
   server.registerTool('log_meal', {
     description: `Log meals eaten. Every flavor id must exist (find_food first). Preview lists violations and duplicates; saving needs acknowledgeViolations / acknowledgeDuplicates when present. ${CONFIRM_HINT}`,
     inputSchema: {
       meals: z.array(z.object({
         catId: z.string(), date: z.string(), slot: z.enum(['AM', 'PM']), plates: z.array(plate),
-        choice: z.object({ pickedIdx: z.number() }).nullable().optional(),
+        choice: z.object({ pickedIdx: z.number().int().min(0) }).nullable().optional(),
         verdict: z.enum(['clean', 'bites_left', 'half', 'rejected', 'ate_then_vomited']),
         vomitCause: z.enum(['food', 'hairball', 'unsure']).nullable().optional(),
         sideOutcome: z.enum(['all', 'some', 'none']).nullable().optional(),

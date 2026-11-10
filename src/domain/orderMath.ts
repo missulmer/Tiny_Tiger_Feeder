@@ -46,3 +46,20 @@ export function casesForShare(
   const needOz = ozPerDay * intervalDays - onHandOz;
   return needOz <= 0 ? 0 : Math.ceil(needOz / caseOz);
 }
+
+type DatedOrder = { id: string; date: string; status: 'planned' | 'confirmed-in-chewy' | 'arrived' };
+
+/**
+ * Orders that count as the household's autoship baseline (R19): confirmed in Chewy or arrived,
+ * never merely planned. Most recent first: by date, then by id (later id wins a tie).
+ */
+export function baselineOrders<T extends DatedOrder>(orders: T[]): T[] {
+  return orders
+    .filter((o) => o.status === 'confirmed-in-chewy' || o.status === 'arrived')
+    .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+}
+
+/** The current order (R19): the most recent confirmed-in-chewy or arrived order. */
+export function currentOrderOf<T extends DatedOrder>(orders: T[]): T | null {
+  return baselineOrders(orders)[0] ?? null;
+}

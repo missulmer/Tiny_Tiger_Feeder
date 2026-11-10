@@ -128,3 +128,33 @@ describe('set_household_rule', () => {
     expect(await repo.rules.list()).toHaveLength(0);
   });
 });
+
+describe('final-review fixes: catalog', () => {
+  it('C1: add_food records an optional casePrice; rejects a non-positive one', async () => {
+    await addFood(repo, { product: { ...product, casePrice: 39.99 }, flavors, confirm: true });
+    const p = (await repo.products.get('weruva-funky-fish'))!;
+    expect(p.prices).toHaveLength(1);
+    expect(p.prices[0]).toMatchObject({ casePrice: 39.99, source: 'add_food' });
+    expect(p.prices[0]!.seenOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    await expect(addFood(repo, { product: { ...product, casePrice: 0 }, flavors, confirm: true })).rejects.toThrow(/casePrice/);
+    await expect(addFood(repo, { product: { ...product, casePrice: Number.POSITIVE_INFINITY }, flavors, confirm: true })).rejects.toThrow(/casePrice/);
+    expect(await repo.products.list()).toHaveLength(1);
+  });
+
+  it('I4: update_food rejects a missing productId, unknown fields, bad enums and bad prices', async () => {
+    await addFood(repo, { product, flavors, confirm: true });
+    const fid = (await repo.flavors.list())[0]!.id;
+    await expect(updateFood(repo, { id: fid, patch: { productId: 'nope' }, confirm: true })).rejects.toThrow(/nope/);
+    await expect(updateFood(repo, { id: fid, patch: { bogus: 1 }, confirm: true })).rejects.toThrow(/bogus/);
+    await expect(updateFood(repo, { id: fid, patch: { kind: 'treat' }, confirm: true })).rejects.toThrow(/kind/);
+    await expect(updateFood(repo, { id: fid, patch: { texture: 'chunks' }, confirm: true })).rejects.toThrow(/texture/);
+    await expect(updateFood(repo, { id: 'weruva-funky-fish', patch: { status: 'gone' }, confirm: true })).rejects.toThrow(/status/);
+    await expect(updateFood(repo, { id: 'weruva-funky-fish', patch: { bogus: 1 }, confirm: true })).rejects.toThrow(/bogus/);
+    await expect(updateFood(repo, { id: 'weruva-funky-fish', patch: { prices: [{ casePrice: -1, seenOn: '2026-11-01', source: 'x' }] }, confirm: true }))
+      .rejects.toThrow(/prices/);
+    await expect(updateFood(repo, { id: 'weruva-funky-fish', patch: { prices: [{ casePrice: 30, seenOn: 'yesterday', source: 'x' }] }, confirm: true }))
+      .rejects.toThrow(/prices/);
+    await updateFood(repo, { id: 'weruva-funky-fish', patch: { prices: [{ casePrice: 30, seenOn: '2026-11-01', source: 'owner' }] }, confirm: true });
+    expect((await repo.products.get('weruva-funky-fish'))!.prices).toEqual([{ casePrice: 30, seenOn: '2026-11-01', source: 'owner' }]);
+  });
+});
