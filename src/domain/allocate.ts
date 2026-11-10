@@ -235,13 +235,23 @@ export function buildUpdateSheet(input: UpdateSheetInput): UpdateSheet {
     lines.push(line(cur.productId, action, cur.qtyCases, toQty));
   }
 
-  // ADDs, largest oz/day first. Only adding a new or rested food counts as the one swap: a product whose
-  // flavors are all unproven / resting / due_for_retry (or have no known state) and that was in no order
-  // from the last 2 intervals. The first such ADD passes; the rest are held back unless overridden.
-  const recent = new Set(input.recentProductIds ?? []);
-  const isSwap = (pid: string): boolean => !recent.has(pid) &&
-    flavorsOf(pid).every((f) => { const st = states[f.id]; return st === undefined || SWAP_STATES.has(st); });
+  // R21: an allocated product outside the current order that the shelf covers stays on the sheet as KEEP 0,
+  // so it does not drop off once it leaves the order. (A variety pack outside the order is dropped instead.)
   const pids = new Set(Object.keys(flavorsByProduct));
+  for (const pid of pids) {
+    if (currentQty.has(pid) || productById.get(pid)?.isVarietyPack) continue;
+    if (toQtyFor(pid) === 0 && coveredByStock(pid)) {
+      lines.push({ productId: pid, action: 'KEEP', fromQty: 0, toQty: 0, reason: COVERED_REASON });
+    }
+  }
+
+  // ADDs, largest oz/day first. Only adding a new or rested food counts as the one swap: a product whose
+  // flavors are all unproven / resting / due_for_retry (or have no known state), that was in no order
+  // from the last 2 intervals, and that has no stock on hand (R21). The first such ADD passes; the rest
+  // are held back unless overridden.
+  const recent = new Set(input.recentProductIds ?? []);
+  const isSwap = (pid: string): boolean => !recent.has(pid) && !(stockOz(pid) > 0) &&
+    flavorsOf(pid).every((f) => { const st = states[f.id]; return st === undefined || SWAP_STATES.has(st); });
   const adds = [...pids]
     .filter((pid) => !currentQty.has(pid))
     .map((pid) => ({ pid, oz: ozPerDay(pid), qty: toQtyFor(pid) }))
@@ -278,11 +288,15 @@ export function buildUpdateSheet(input: UpdateSheetInput): UpdateSheet {
   const mix: MixLine[] = kept.map((l) => {
     const p = productById.get(l.productId);
     const price = p ? latestPrice(p) : null;
-    if (price === null && l.toQty > 0) warnings.push(`No case price on file for ${l.productId}; counted as $0.`);
+    if (price === null && l.toQty > 0) {
+      warnings.push(`No price on file for ${l.productId}, so the cost totals leave it out and are understated.`);
+    }
     return { productId: l.productId, cases: l.toQty, caseOz: caseOzOf(p), casePrice: price ?? 0 };
   });
   const dailyOz = input.cats ? input.cats.reduce((n, c) => n + portion(c), 0) : total(proposedOzPerDay);
-  const pantryOz = kept.reduce((n, l) => n + stockOz(l.productId), 0);
+  // R21: stock of every product the mix allocates oz/day to counts, on the sheet or not; stock nobody is
+  // allocated does not.
+  const pantryOz = [...pids].filter((pid) => ozPerDay(pid) > 0).reduce((n, pid) => n + stockOz(pid), 0);
 
   // R20: summarizeOrder keeps its fitted-interval slack; the sheet measures slack against the chosen
   // interval, so it is negative when the food runs out before the next shipment.

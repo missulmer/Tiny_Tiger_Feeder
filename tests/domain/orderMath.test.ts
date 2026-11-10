@@ -52,3 +52,11 @@ test('exactly 28.0 days is 4 weeks with no slack', () => {
   expect(s.intervalWeeks).toBe(4);
   expect(s.slackDays).toBeCloseTo(0, 6);
 });
+
+test('R21: current-order tie-break compares the numeric id suffix, not text', async () => {
+  const { currentOrderOf, baselineOrders } = await import('../../src/domain/orderMath.js');
+  const o = (id: string) => ({ id, date: '2026-11-10', status: 'arrived' as const });
+  expect(currentOrderOf([o('plan-2026-11-10-2'), o('plan-2026-11-10-10'), o('plan-2026-11-10')])!.id).toBe('plan-2026-11-10-10');
+  expect(baselineOrders([o('plan-2026-11-10'), o('plan-2026-11-10-10'), o('plan-2026-11-10-2')]).map((x) => x.id))
+    .toEqual(['plan-2026-11-10-10', 'plan-2026-11-10-2', 'plan-2026-11-10']);
+});

@@ -226,3 +226,49 @@ describe('plan_order: final-review fixes (tool level)', () => {
     expect(JSON.parse((ok.content as { text: string }[])[0]!.text).saved).toBe(false);
   });
 });
+
+describe('R21: covered stock (tool level)', () => {
+  const lamb = flavor({ id: 'lamb-pate', name: 'Lamb Pate', primaryProtein: 'lamb' });
+
+  async function setup(): Promise<Repo> {
+    const r = createMemoryRepo();
+    for (const c of cats) await r.cats.put(c);
+    for (const f of [chickenPate, lamb]) {
+      await r.flavors.put({ ...f, provenAtOnboarding: true });
+      await r.products.put(product({ id: f.productId }));
+    }
+    return r;
+  }
+
+  it('stock covering more than one interval keeps lamb on the sheet and in days of food', async () => {
+    const r = await setup();
+    await recordShipment(r, { source: 'screenshot', confirm: true, order: { id: 'on1', date: '2026-09-01', intervalWeeks: 4,
+      lines: [{ productId: chickenPate.productId, qtyCases: 4 }, { productId: lamb.productId, qtyCases: 2 }] } });
+    await pantryCount(r, { counts: { 'lamb-pate': 2000 }, confirm: true });
+
+    const p1 = await planOrder(r, { confirm: true });
+    expect(p1.lines.find(l => l.productId === lamb.productId))
+      .toMatchObject({ action: 'KEEP', fromQty: 2, toQty: 0, reason: 'Covered by stock on hand this shipment' });
+    const stored = (await r.orders.get(p1.orderId!))!;
+    await confirmInChewy(r, { orderId: stored.id, lines: stored.lines.map(l => ({ productId: l.productId, qtyCases: l.qtyCases })), confirm: true });
+    await confirmArrival(r, { orderId: stored.id, confirm: true });
+
+    const p2 = await planOrder(r, { confirm: false });
+    expect(p2.lines.find(l => l.productId === lamb.productId))
+      .toEqual({ productId: lamb.productId, action: 'KEEP', fromQty: 0, toQty: 0, reason: 'Covered by stock on hand this shipment' });
+    expect(p2.summary.daysOfFood).toBeGreaterThan((2000 * 3) / 32.5);
+    expect(p2.summary.slackDays).toBeGreaterThanOrEqual(0);
+    expect(p2.warnings.filter(w => w.includes('Food runs out'))).toEqual([]);
+  });
+
+  it('confirm:true with nothing left to order stores no empty planned order', async () => {
+    const r = await setup();
+    await pantryCount(r, { counts: { 'chicken-pate': 5000, 'lamb-pate': 5000 }, confirm: true });
+    const p = await planOrder(r, { confirm: true });
+    expect(p.lines.every(l => l.toQty === 0)).toBe(true);
+    expect(p.saved).toBe(false);
+    expect(p.orderId).toBeNull();
+    expect((p as { reason?: string }).reason).toMatch(/nothing to order/i);
+    expect(await r.ordersByStatus('planned')).toHaveLength(0);
+  });
+});

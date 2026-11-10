@@ -320,3 +320,35 @@ describe('final-review fixes (domain)', () => {
     expect(sh.warnings.some((w) => w.includes('one-swap'))).toBe(false);
   });
 });
+
+describe('R21: covered stock (domain)', () => {
+  it('a covered product not in the current order is a KEEP 0 line, and its stock counts toward days of food', () => {
+    const sh = sheet({
+      current: [{ productId: 'p-chicken-pate', qtyCases: 2, casePrice: 24 }],
+      proposedOzPerDay: { 'chicken-pate': 2, 'funk-in-the-trunk': 2 },
+      onHandOz: { 'funk-in-the-trunk': 1000, 'salmon-pate': 900 },
+      states: { 'funk-in-the-trunk': 'resting' },
+    });
+    expect(sh.lines.find((l) => l.productId === 'p-funk-in-the-trunk')).toEqual({
+      productId: 'p-funk-in-the-trunk', action: 'KEEP', fromQty: 0, toQty: 0, reason: 'Covered by stock on hand this shipment',
+    });
+    // Chicken: 2 oz/day x 28 = 56 oz -> 2 cases = 72 oz. Funk stock counts (allocated); salmon stock does not (nobody is).
+    expect(sh.summary.daysOfFood).toBeCloseTo((72 + 1000) / 4, 9);
+  });
+
+  it('a product with stock on hand is exempt from the one-swap limit', () => {
+    const sh = sheet({
+      proposedOzPerDay: { 'chicken-pate': 2, 'funk-in-the-trunk': 3 },
+      onHandOz: { 'chicken-pate': 10 },
+      states: { 'chicken-pate': 'resting', 'funk-in-the-trunk': 'unproven' },
+    });
+    expect(sh.lines.map((l) => [l.productId, l.action])).toEqual([['p-funk-in-the-trunk', 'ADD'], ['p-chicken-pate', 'ADD']]);
+    expect(sh.warnings.some((w) => w.includes('one-swap'))).toBe(false);
+  });
+
+  it('a missing price says the cost totals leave it out and are understated', () => {
+    const sh = sheet({ products: [product({ id: 'p-chicken-pate', prices: [] })], proposedOzPerDay: { 'chicken-pate': 6.5 } });
+    expect(sh.warnings).toContain('No price on file for p-chicken-pate, so the cost totals leave it out and are understated.');
+    expect(sh.warnings.some((w) => w.includes('counted as $0'))).toBe(false);
+  });
+});

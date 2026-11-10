@@ -17,7 +17,8 @@ const FLAVOR_FIELDS = [
   'kind', 'unit', 'provenAtOnboarding',
 ] as const;
 const flavorPatch = z.object({
-  id: z.string(), productId: z.string().min(1), name: z.string().min(1), primaryProtein: z.string().min(1),
+  id: z.string(), productId: z.string().min(1), name: z.string().min(1),
+  primaryProtein: z.string().trim().min(1).transform(x => x.toLowerCase()),
   texture: z.enum(TEXTURES), contains: z.array(z.string()).nullable().transform(normalizeContains),
   ingredientsText: z.string().nullable(), cansPerCase: positiveNum, canOz: positiveNum,
   kind: z.enum(FLAVOR_KINDS), unit: z.enum(['can', 'tube', 'cup']), provenAtOnboarding: z.boolean(),
@@ -93,7 +94,7 @@ export async function addFood(
     if (fi.id && (taken.has(id) || await repo.flavors.get(id))) throw new Error(`Flavor id "${id}" already exists.`);
     taken.add(id);
     const f: Flavor = {
-      id, productId: fi.productId ?? productId, name: fi.name, primaryProtein: fi.primaryProtein, texture: fi.texture,
+      id, productId: fi.productId ?? productId, name: fi.name, primaryProtein: fi.primaryProtein.trim().toLowerCase(), texture: fi.texture,
       contains: normalizeContains(fi.contains), ingredientsText: fi.ingredientsText ?? null,
       cansPerCase: fi.cansPerCase ?? pi.cansPerCase, canOz: fi.canOz ?? pi.canOz, kind: fi.kind, unit: fi.unit ?? 'can',
     };

@@ -158,3 +158,13 @@ describe('final-review fixes: catalog', () => {
     expect((await repo.products.get('weruva-funky-fish'))!.prices).toEqual([{ casePrice: 30, seenOn: '2026-11-01', source: 'owner' }]);
   });
 });
+
+describe('R21: primaryProtein is lowercased', () => {
+  it('in add_food and update_food', async () => {
+    await addFood(repo, { product, flavors: [{ ...flavors[0]!, primaryProtein: ' Chicken ' }], confirm: true });
+    const f = (await repo.flavors.list())[0]!;
+    expect(f.primaryProtein).toBe('chicken');
+    await updateFood(repo, { id: f.id, patch: { primaryProtein: 'DUCK' }, confirm: true });
+    expect((await repo.flavors.get(f.id))!.primaryProtein).toBe('duck');
+  });
+});

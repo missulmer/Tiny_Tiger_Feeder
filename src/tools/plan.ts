@@ -187,6 +187,12 @@ export async function planOrder(repo: Repo, input: PlanInput, now: Date = new Da
     orderId = id;
     return sheet;
   };
+  if (input.confirm && kept.length === 0) {
+    return {
+      ...sheet, saved: false, orderId,
+      reason: 'Nothing to order this time: stock on hand covers every food, so no planned order was stored.',
+    };
+  }
   const r = await withConfirm(input.confirm, sheet, commit);
   return { ...r.preview, saved: r.saved, orderId };
 }

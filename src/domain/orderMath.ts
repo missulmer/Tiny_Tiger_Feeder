@@ -47,16 +47,19 @@ export function casesForShare(
   return needOz <= 0 ? 0 : Math.ceil(needOz / caseOz);
 }
 
+const ID_ORDER = new Intl.Collator('en', { numeric: true });
+
 type DatedOrder = { id: string; date: string; status: 'planned' | 'confirmed-in-chewy' | 'arrived' };
 
 /**
  * Orders that count as the household's autoship baseline (R19): confirmed in Chewy or arrived,
- * never merely planned. Most recent first: by date, then by id (later id wins a tie).
+ * never merely planned. Most recent first: by date, then by id (later id wins a tie). Ids compare with
+ * numeric runs as numbers, so plan-...-10 is later than plan-...-2 (orders have no createdAt).
  */
 export function baselineOrders<T extends DatedOrder>(orders: T[]): T[] {
   return orders
     .filter((o) => o.status === 'confirmed-in-chewy' || o.status === 'arrived')
-    .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+    .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : ID_ORDER.compare(b.id, a.id)));
 }
 
 /** The current order (R19): the most recent confirmed-in-chewy or arrived order. */
