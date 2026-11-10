@@ -91,6 +91,24 @@ Leave the advanced OAuth client ID/secret fields empty (the server supports dyna
 registration). Click **Connect**, pick `laura@ulmerandco.io` at Google. Any other Google account
 gets "not allowed" (HTTP 403) and no connection. The connector then appears in the Claude phone app.
 
+What sign-in looks like: Claude opens a Tiny Tiger Feeder consent page showing the app name,
+the URL it returns to (`https://claude.ai/api/mcp/auth_callback`) and when it registered, with the
+warning "Approve only if you just clicked Connect in your own Claude app. If someone sent you this
+link, close this page." Approve, then pick the Google account. The page is shown on every connect,
+by design. Sign-in must finish in the same browser that showed the consent page (cookie binding).
+
+## 7. Pin the Google account (recommended, after first sign-in)
+
+After the first successful sign-in, set `ALLOWED_GOOGLE_SUB` to pin the Google account, so a
+different Google account that somehow carries the same email can't sign in. The id is logged
+on each successful sign-in:
+
+```sh
+gcloud logging read 'resource.type="cloud_run_revision" AND textPayload:"google sign-in sub="' \
+  --limit 1 --format='value(textPayload)'
+gcloud run services update tiny-tiger-feeder --region "$REGION" --update-env-vars ALLOWED_GOOGLE_SUB=<sub>
+```
+
 ## Later changes
 
 - Rotate the Google secret: `printf %s NEW | gcloud secrets versions add google-client-secret --data-file=-`, then redeploy.
@@ -98,3 +116,5 @@ gets "not allowed" (HTTP 403) and no connection. The connector then appears in t
   address stops working immediately; reconnect the connector.
 - If Claude's OAuth callback URL ever changes, registration fails with `redirect_uri not allowed`;
   set `ALLOWED_REDIRECT_URIS` (comma-separated) to the new callback(s) and redeploy.
+- The app sets Express `trust proxy` to 1, which assumes exactly one proxy hop (Cloud Run's front end)
+  when it derives client IPs for rate limiting. If a load balancer or CDN is ever put in front, revisit it.

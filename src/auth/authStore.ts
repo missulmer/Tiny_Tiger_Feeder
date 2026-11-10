@@ -6,8 +6,17 @@ import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/share
  * so raw secrets never persist. Expiry is enforced by the provider, not here.
  */
 
-/** An /authorize request waiting for the Google sign-in to come back. */
+/**
+ * An /authorize request in flight. Stage 'consent': the consent page is showing (keyed by
+ * sha256 of the form's pending id). Stage 'google': approved, waiting for Google to come back
+ * (keyed by sha256 of the Google `state`). Both are bound to the browser that started it.
+ */
 export interface PendingAuthorization {
+  stage: 'consent' | 'google';
+  /** sha256 of the __Host- cookie set on the browser at /authorize. */
+  browserHash: string;
+  /** sha256 of the consent form's CSRF token (consent stage only). */
+  csrfHash?: string;
   clientId: string;
   redirectUri: string;
   codeChallenge: string;
@@ -15,8 +24,8 @@ export interface PendingAuthorization {
   state?: string;
   scopes: string[];
   resource?: string;
-  /** OpenID Connect nonce we sent to Google; must come back in the ID token. */
-  nonce: string;
+  /** OpenID Connect nonce we sent to Google; must come back in the ID token (google stage only). */
+  nonce?: string;
   /** ms since epoch */
   expiresAt: number;
 }

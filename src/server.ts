@@ -8,7 +8,7 @@ import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middlew
 import type { Repo } from './store/repo.js';
 import type { AuthStore } from './auth/authStore.js';
 import {
-  GoogleAllowlistProvider, GOOGLE_CALLBACK_PATH, type ExchangeGoogleCode, type VerifyGoogleIdToken,
+  GoogleAllowlistProvider, GOOGLE_CALLBACK_PATH, CONSENT_PATH, type ExchangeGoogleCode, type VerifyGoogleIdToken,
 } from './auth/googleAllowlist.js';
 import { register as catalog } from './tools/catalog.js';
 import { register as cats } from './tools/cats.js';
@@ -33,6 +33,8 @@ export interface Env {
   store: 'memory' | 'firestore';
   port: number;
   allowedRedirectUris: string[];
+  /** Optional Google account id (ID token `sub`) that must also match. */
+  allowedGoogleSub?: string;
 }
 
 export const DEFAULT_ALLOWED_EMAIL = 'laura@ulmerandco.io';
@@ -89,6 +91,7 @@ export function loadEnv(e: Record<string, string | undefined> = process.env): En
     store,
     port,
     allowedRedirectUris,
+    ...(e.ALLOWED_GOOGLE_SUB?.trim() ? { allowedGoogleSub: e.ALLOWED_GOOGLE_SUB.trim() } : {}),
   };
 }
 
@@ -106,15 +109,19 @@ export interface AppDeps {
   env: Env;
   /** Clock for token/code expiry (ms since epoch). Tests inject this. */
   now?: () => number;
+  /** Informational log sink (default console.log). */
+  log?: (msg: string) => void;
 }
 
-export function createApp({ repo, authStore, verifyGoogleIdToken, exchangeGoogleCode, env, now }: AppDeps): Express {
+export function createApp({ repo, authStore, verifyGoogleIdToken, exchangeGoogleCode, env, now, log }: AppDeps): Express {
   const provider = new GoogleAllowlistProvider(authStore, {
     allowedEmail: env.allowedEmail,
     googleClientId: env.googleClientId,
     publicBaseUrl: env.publicBaseUrl,
     allowedRedirectUris: env.allowedRedirectUris,
+    allowedGoogleSub: env.allowedGoogleSub,
     now,
+    log,
   });
   const issuerUrl = new URL(env.publicBaseUrl);
   const mcpUrl = new URL(provider.resourceUrl);
@@ -140,6 +147,7 @@ export function createApp({ repo, authStore, verifyGoogleIdToken, exchangeGoogle
     resource_name: 'Tiny Tiger Feeder',
   }));
 
+  app.post(CONSENT_PATH, express.urlencoded({ extended: false, limit: '10kb' }), provider.consentHandler());
   app.get(GOOGLE_CALLBACK_PATH, provider.googleCallback(exchangeGoogleCode, verifyGoogleIdToken));
   app.get('/healthz', (_req, res) => { res.type('text').send('ok'); });
 
@@ -191,7 +199,7 @@ export async function main(): Promise<void> {
     const ticket = await google.verifyIdToken({ idToken, audience: env.googleClientId });
     const p = ticket.getPayload();
     if (!p) throw new Error('ID token has no payload');
-    return { email: p.email, email_verified: p.email_verified, nonce: p.nonce };
+    return { email: p.email, email_verified: p.email_verified, nonce: p.nonce, sub: p.sub };
   };
 
   let repo: Repo;

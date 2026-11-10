@@ -13,7 +13,8 @@ export function authStoreContract(name: string, make: () => Promise<AuthStore>) 
 
   it(`${name}: pending authorizations are taken once`, async () => {
     await s.savePending('p1', {
-      clientId: 'c1', redirectUri: 'https://x/cb', codeChallenge: 'ch', scopes: [], nonce: 'n', expiresAt: 1,
+      stage: 'google', browserHash: 'bh', clientId: 'c1', redirectUri: 'https://x/cb', codeChallenge: 'ch',
+      scopes: [], nonce: 'n', expiresAt: 1,
     });
     expect((await s.takePending('p1'))?.nonce).toBe('n');
     expect(await s.takePending('p1')).toBeNull();
